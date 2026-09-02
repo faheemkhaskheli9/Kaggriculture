@@ -1,0 +1,2 @@
+C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe -m kaggle competitions replay 104595643 -p ./replays
+C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe -m kaggle competitions logs 104595643 0 -p ./logs
