@@ -1,4 +1,25 @@
-"""Kaggriculture v7: v5 + A3 field-fill (PLAN_V6.md Track A). PROMOTED.
+"""Kaggriculture v10: v7 + P1 (branch ladder-v9-p1-cashfloor) + PLAN_LADDER_V10
+F1/P2/P4. See docs/PLAN_LADDER_V10.md.
+
+Bundle on top of P1 (day-scaled working-capital `reserve` + per-turn seed-spend
+cap, already committed):
+  F1 -- vs an animal-heavy opponent, MATCH the herd (COW5/GOOSE5/SHEEP1) instead
+        of crouching to 6 -- the FREE fertilizer line (1/animal/day) is the
+        animal factory's real income, and EGG/FERTILIZER never crash under a
+        dump. (v8's other two hunks -- the "subtract wheat the hands carry"
+        feed-accounting change -- were tested and DROPPED: private.inventories
+        sums every unit and is dominated by crop-sale wheat in transit, so it
+        zeroed the feed reserve, the herd went underfed, and coins vs starter
+        fell ~45%. So this is F1 only, not the whole v8 fold-in.)
+  P2 -- FERTILIZER is a staple sell, not a "contested" thin-slice: its price
+        curve is near-flat linear with a high floor, town drains it for free, and
+        we were letting ~half the herd's free daily drop rot unsold.
+  P4 -- stop planting tiles we cannot farm: gate the Q4 ($4k) land unlock on
+        crew >= 12, cap total plants at crop_units*8 in add_plant_tasks, and
+        clear late weeds (day>=18) at 2500 -- still below comfort-water 2600.
+Rollback chain: v10 -> (v10 - P4) -> (P1 only) -> agents/main_v7.py.
+
+--- v7 (parent): v5 + A3 field-fill (PLAN_V6.md Track A). PROMOTED.
 
 v6 (angular-wedge zones + PLANT/DIG above comfort-water + stale-water skip) was a
 regression -- it lost to agents/main_v4.py 3-0-9 where v5 wins 12-0-0, isolated to
@@ -217,18 +238,17 @@ def animal_targets(obs, me):
     nq = len(me.get("unlocked_quadrants", []))
     cap = {1: 3, 2: 8}.get(nq, 13)
     dem = demand_counts(obs)
-    # opponent-conditional scale. 30 ladder games: MILK and WOOL both floor to
-    # single digits when BOTH players sell them (milk hit 5, wool hit 1). Against
-    # an animal-heavy opponent a big cow/sheep herd sells its milk for nothing --
-    # so if they are already animal-heavy, keep just enough for our own free
-    # fertilizer + eggs (EGG rarely crashes) and put the rest of the field into
-    # wheat volume + strawberry instead.
+    # opponent-conditional scale (PLAN_LADDER_V10 F1). MILK/WOOL floor to single digits
+    # when both players dump them, but FERTILIZER (free, 1/animal/day, even
+    # unfed) and EGG do not, and 105 ladder episodes show the animal factories
+    # win on that fertilizer line while our old crouch (cap 6) forfeited it. So
+    # vs an animal-heavy opponent we now MATCH the herd, weighted GOOSE/COW over
+    # SHEEP (WOOL is the line that floors under a dump).
     opp_farm = obs["farms"][1 - obs["player"]]
     opp_animals = sum(1 for row in opp_farm.get("tiles", []) for t in row
                       if isinstance(t, dict) and t.get("animal"))
     if day >= 7 and opp_animals >= 4:
-        want = {"COW": 3, "GOOSE": 3, "SHEEP": 0}
-        cap = min(cap, 6)
+        want = {"COW": 5, "GOOSE": 5, "SHEEP": 1}
     else:
         want = {"COW": 9, "GOOSE": 2, "SHEEP": 2 if dem["WOOL"] else 1}
     out, tot = {}, 0
@@ -513,10 +533,18 @@ def build_tasks(obs, me, private):
                 if not liquidate and t.get("fertilizer_available", False):
                     tasks.append((2700, pos, ["COLLECT_FERTILIZER"]))
             elif kind == "WEED":
-                # 2200: above the old 1500 so the field is reclaimed faster, but
+                # 2200 (>the old 1500) so the field is reclaimed faster, still
                 # strictly below comfort-water (2600) -- a live plant is never
                 # left dry to clear a weed. DIG is also zone-only (see assign).
-                tasks.append((2200 if not liquidate else 0, pos, ["DIG"]))
+                # P4c: from day 18 bump to 2500 -- late field turns fallow->weed
+                # and every reclaimed tile is a replant slot, but still < 2600.
+                if liquidate:
+                    weed_pri = 0
+                elif day >= 18:
+                    weed_pri = 2500
+                else:
+                    weed_pri = 2200
+                tasks.append((weed_pri, pos, ["DIG"]))
     return tasks, counts
 
 
@@ -534,7 +562,16 @@ def add_plant_tasks(obs, me, private, counts, tasks, n_units, reserved=()):
         1 for row in tiles for t in row
         if isinstance(t, dict) and t.get("kind") == "PLANT" and not t.get("watered_today")
     )
-    room = min(capacity - planted, max(0, n_units * 22 - unwatered))
+    # P4b: hard coverage cap. Only the units NOT on the animal crew farm crops
+    # (mirror agent()'s upper-bound crew sizing), and each can keep ~8 tiles
+    # watered+harvested daily. Planting past that just seeds weeds29 (17-34 in
+    # the loss games) -- the furthest tiles are better left fallow (0.5%/day
+    # weed risk) than planted to die (~100% in 2 unwatered days).
+    crop_units = max(1, n_units - min(4, max(0, n_units - 6)))
+    coverage_cap = crop_units * 8
+    room = min(capacity - planted,
+               max(0, n_units * 22 - unwatered),
+               coverage_cap - planted)
     if room <= 0:
         return
     empty = sorted(
@@ -724,7 +761,11 @@ def market_orders(obs, me, private, counts, n_units):
     # ---- selling: size each order against the local price curve ----
     n_placed = sum(1 for row in me["tiles"] for t in row
                    if isinstance(t, dict) and t.get("animal"))
-    # keep two days of feed wheat back from the sell pile
+    # keep two days of feed wheat back from the sell pile. (v8's "subtract the
+    # wheat hands already carry" variant was DROPPED -- private.inventories sums
+    # every unit, and it is dominated by crop-sale wheat in transit on the crop
+    # hands, not feed wheat on the animal crew; it zeroed the floor, the herd
+    # went underfed, and coins vs starter fell ~45%. See docs/PLAN_LADDER_V10.md.)
     wheat_floor = (2 * n_placed + 4) if (USE_ANIMALS and n_placed and day < 28) else 0
     for item, qty in list(shed.items()):
         qty = int(qty)
@@ -738,9 +779,24 @@ def market_orders(obs, me, private, counts, n_units):
         # contested animal products (30 ladder games: prices collapse to <10 when
         # both farms dump) -- sell only a thin slice per turn and never into a
         # real dip; the day-28 full-dump branch still clears the shed.
-        contested = item in ("MILK", "WOOL", "FERTILIZER")
+        contested = item in ("MILK", "WOOL")
+        staple_fert = item == "FERTILIZER"
         if day >= 28:
             amount = qty
+        elif staple_fert:
+            # PLAN_LADDER_V10 P2. FERTILIZER is a free by-product (1/animal/day,
+            # even unfed) on a near-flat linear price curve with a high floor,
+            # and the town drains it faster than production so it sits above
+            # base most of the season. The old "contested" treatment (cap 8,
+            # keep 0.72*base) left ~half the herd's daily drop rotting unsold.
+            # Move a big slice every turn; only sit out a genuine deep dip.
+            keep = 0.45 * base
+            cap = 25
+            amount = 0
+            while amount < min(qty, cap) and price_at(item, inv0 + 2 * amount) >= keep:
+                amount += 1
+            if amount == 0 and p0 >= 0.30 * base:
+                amount = min(qty, 5)
         elif contested and p0 < 0.5 * base:
             amount = 0
         else:
@@ -773,7 +829,10 @@ def market_orders(obs, me, private, counts, n_units):
         if nth < 2:
             ok = day <= 18 and fill >= 0.55 and money >= cost + 400 + 200 * nth
         else:
-            ok = 8 <= day <= 20 and fill >= 0.62 and money >= cost + 2500
+            # P4a: Q4 ($4k) doubles the field to ~100 tiles -- never buy it
+            # without the crew to work it, or it just manufactures weeds29.
+            ok = (8 <= day <= 20 and fill >= 0.62 and n_units >= 12
+                  and money >= cost + 2500)
         if ok:
             buys_hi.append(["BUY_LAND"])
 
@@ -877,4 +936,4 @@ def agent(obs):
 
 
 if __name__ == "__main__":
-    print("Kaggriculture Agent v7 (v5 + A3 field-fill; wedge zones dropped)")
+    print("Kaggriculture Agent v10 (v7 + P1 cash-floor + F1 herd + P2 fert + P4 coverage)")
