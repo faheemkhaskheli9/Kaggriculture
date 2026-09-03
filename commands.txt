@@ -1,2 +1,11 @@
-C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe -m kaggle competitions replay 104595643 -p ./replays
-C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe -m kaggle competitions logs 104595643 0 -p ./logs
+C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe -m kaggle competitions replay 104596563 -p ./replays
+C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe -m kaggle competitions logs 104596563 0 -p ./logs
+
+C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe -m kaggle competitions episodes 55952549 -v
+
+# --- Bulk download of every submission's replays + logs (incremental) ---
+# Fetches new episodes only; skips anything already in ./replays and ./logs.
+# Writes episodes/manifest.json + episodes/index.csv for offline analysis.
+C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe download_episodes.py
+C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe download_episodes.py --dry-run
+C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe download_episodes.py --skip-validation --agents 0

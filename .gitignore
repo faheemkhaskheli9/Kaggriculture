@@ -1,0 +1,16 @@
+__pycache__
+
+replays
+logs
+episodes
+benchmark_replays
+tournament_replays
+compete_replays
+
+docs
+
+ml/artifacts/*
+!ml/artifacts/.gitkeep
+
+local.ipynb
+scratchpad/kaggriculture.zip

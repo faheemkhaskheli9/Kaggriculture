@@ -1,0 +1,82 @@
+Loading environment open_spiel_env failed: No module named 'pyspiel'
+  pair 1/28: main vs main_v4        pair 2/28: main vs main_v5        pair 3/28: main vs main_v7        pair 4/28: main vs main_p3        pair 5/28: main vs bot_animalfarm        pair 6/28: main vs bot_wheatflood        pair 7/28: main vs starter        pair 8/28: main_v4 vs main_v5        pair 9/28: main_v4 vs main_v7        pair 10/28: main_v4 vs main_p3      Traceback (most recent call last):
+  File "E:\Competitions\Kaggriculture\tournament.py", line 139, in <module>
+    main()
+    ~~~~^^
+  File "E:\Competitions\Kaggriculture\tournament.py", line 81, in main
+    r = run_game(agents[i], agents[j], seat, seed=seed)
+  File "E:\Competitions\Kaggriculture\test.py", line 131, in run_game
+    replay = env.toJSON()
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\kaggle_environments\core.py", line 521, in toJSON
+    return copy.deepcopy(
+           ~~~~~~~~~~~~~^
+        {
+        ^
+    ...<20 lines>...
+        }
+        ^
+    )
+    ^
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 131, in deepcopy
+    y = copier(x, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 202, in _deepcopy_dict
+    y[deepcopy(key, memo)] = deepcopy(value, memo)
+                             ~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 131, in deepcopy
+    y = copier(x, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 177, in _deepcopy_list
+    append(deepcopy(a, memo))
+           ~~~~~~~~^^^^^^^^^
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 131, in deepcopy
+    y = copier(x, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 177, in _deepcopy_list
+    append(deepcopy(a, memo))
+           ~~~~~~~~^^^^^^^^^
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 157, in deepcopy
+    y = _reconstruct(x, memo, *rv)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 240, in _reconstruct
+    state = deepcopy(state, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 131, in deepcopy
+    y = copier(x, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 202, in _deepcopy_dict
+    y[deepcopy(key, memo)] = deepcopy(value, memo)
+                             ~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 157, in deepcopy
+    y = _reconstruct(x, memo, *rv)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 240, in _reconstruct
+    state = deepcopy(state, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 131, in deepcopy
+    y = copier(x, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 202, in _deepcopy_dict
+    y[deepcopy(key, memo)] = deepcopy(value, memo)
+                             ~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 131, in deepcopy
+    y = copier(x, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 177, in _deepcopy_list
+    append(deepcopy(a, memo))
+           ~~~~~~~~^^^^^^^^^
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 157, in deepcopy
+    y = _reconstruct(x, memo, *rv)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 240, in _reconstruct
+    state = deepcopy(state, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 131, in deepcopy
+    y = copier(x, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 202, in _deepcopy_dict
+    y[deepcopy(key, memo)] = deepcopy(value, memo)
+                             ~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 131, in deepcopy
+    y = copier(x, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 177, in _deepcopy_list
+    append(deepcopy(a, memo))
+           ~~~~~~~~^^^^^^^^^
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 131, in deepcopy
+    y = copier(x, memo)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 177, in _deepcopy_list
+    append(deepcopy(a, memo))
+           ~~~~~~~~^^^^^^^^^
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 157, in deepcopy
+    y = _reconstruct(x, memo, *rv)
+  File "C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Lib\copy.py", line 236, in _reconstruct
+    memo[id(x)] = y
+    ~~~~^^^^^^^
+MemoryError

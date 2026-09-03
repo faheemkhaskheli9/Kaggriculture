@@ -1,0 +1,11 @@
+Loading environment open_spiel_env failed: No module named 'pyspiel'
+Candidate: main.py | games/opponent: 8 | seed: base 10000000 (shared per seat-pair)
+  starter: 1/8  starter: 2/8  starter: 3/8  starter: 4/8  starter: 5/8  starter: 6/8  starter: 7/8  starter: 8/8                                                                      starter          games=   8 W/T/L=8/0/0 score=100.0% coins mean/median/p10/min=27098/26926/23415/23415 diff=+23619 errors=0
+                 move%=66% sell/day=22 emptyslots=483 unsold=2 coins d10/d20/d29=740/5450/27098
+  random: 1/8  random: 2/8  random: 3/8  random: 4/8  random: 5/8  random: 6/8  random: 7/8  random: 8/8                                                                      random           games=   8 W/T/L=8/0/0 score=100.0% coins mean/median/p10/min=29312/28369/16897/16897 diff=+29286 errors=0
+                 move%=65% sell/day=19 emptyslots=484 unsold=7 coins d10/d20/d29=1168/2249/29312
+  scratchpad/main_p1_baseline.py: 1/8  scratchpad/main_p1_baseline.py: 2/8  scratchpad/main_p1_baseline.py: 3/8  scratchpad/main_p1_baseline.py: 4/8  scratchpad/main_p1_baseline.py: 5/8  scratchpad/main_p1_baseline.py: 6/8  scratchpad/main_p1_baseline.py: 7/8  scratchpad/main_p1_baseline.py: 8/8                                                                      scratchpad/main_p1_baseline.py games=   8 W/T/L=2/2/4 score=37.5% coins mean/median/p10/min=24488/21816/7306/7306 diff=-10229 errors=0
+                 move%=65% sell/day=20 emptyslots=487 unsold=5 coins d10/d20/d29=921/2828/24488
+----------------------------------------------------------------------------------------------------
+OVERALL          games=  24 W/T/L=18/2/4 score=79.2% coins mean/median/p10/min=26966/26290/16897/7306 diff=+14225 errors=0
+                 move%=65% sell/day=20 emptyslots=485 unsold=5 coins d10/d20/d29=943/3509/26966

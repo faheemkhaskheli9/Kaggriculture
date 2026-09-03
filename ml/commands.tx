@@ -1,0 +1,13 @@
+# Phase 0 — probe the Kaggle runtime (one throwaway submission)
+python -m ml.run_phase0_probe && kaggle competitions submit kaggriculture -f ml/artifacts/probe/main.py -m "env probe"
+
+# Phase 1 — cheap knob search (~30–90 min)
+python -m ml.optimize --knobs phase1 --optimizer cmaes --league gate --games 10 --generations 25 --workers 14 --out ml/artifacts/phase1
+
+# Phase 2 — full config (hours, resumable)
+python -m ml.optimize --knobs phase2 --optimizer cmaes --league gate --games 8 --generations 60 --popsize 16 --workers 16 --out ml/artifacts/phase2 --resume
+
+# Promote (never skip)
+python -m ml.export_main ml/artifacts/phase2/best.json -o main_ml.py
+python test.py --games 40 --candidate main_ml.py --incumbent main.py
+kaggle competitions submit kaggriculture -f main_ml.py -m "ml phase2 cfg"

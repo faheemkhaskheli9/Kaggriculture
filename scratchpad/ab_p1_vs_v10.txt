@@ -1,0 +1,11 @@
+Loading environment open_spiel_env failed: No module named 'pyspiel'
+Candidate: scratchpad/main_p1_baseline.py | games/opponent: 8 | seed: base 10000000 (shared per seat-pair)
+  starter: 1/8  starter: 2/8  starter: 3/8  starter: 4/8  starter: 5/8  starter: 6/8  starter: 7/8  starter: 8/8                                                                      starter          games=   8 W/T/L=8/0/0 score=100.0% coins mean/median/p10/min=52024/52022/37364/37364 diff=+48598 errors=0
+                 move%=63% sell/day=34 emptyslots=483 unsold=9 coins d10/d20/d29=484/4283/52024
+  random: 1/8  random: 2/8  random: 3/8  random: 4/8  random: 5/8  random: 6/8  random: 7/8  random: 8/8                                                                      random           games=   8 W/T/L=8/0/0 score=100.0% coins mean/median/p10/min=36136/41056/9023/9023 diff=+36131 errors=0
+                 move%=64% sell/day=27 emptyslots=486 unsold=6 coins d10/d20/d29=973/2840/36136
+  main.py: 1/8  main.py: 2/8  main.py: 3/8  main.py: 4/8  main.py: 5/8  main.py: 6/8  main.py: 7/8  main.py: 8/8                                                                      main.py          games=   8 W/T/L=4/2/2 score=62.5% coins mean/median/p10/min=34717/40992/7306/7306 diff=+10229 errors=0
+                 move%=65% sell/day=28 emptyslots=485 unsold=2 coins d10/d20/d29=762/2675/34717
+----------------------------------------------------------------------------------------------------
+OVERALL          games=  24 W/T/L=20/2/2 score=87.5% coins mean/median/p10/min=40959/42836/9023/7306 diff=+31653 errors=0
+                 move%=64% sell/day=29 emptyslots=485 unsold=6 coins d10/d20/d29=740/3266/40959
