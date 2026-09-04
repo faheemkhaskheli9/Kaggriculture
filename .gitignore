@@ -1,4 +1,5 @@
 __pycache__
+.venv
 
 replays
 logs
@@ -13,4 +14,8 @@ ml/artifacts/*
 !ml/artifacts/.gitkeep
 
 local.ipynb
-scratchpad/kaggriculture.zip
+scratchpad
+
+compete_runs
+tools/auto_improve_runs
+tools/auto_improve_v2_runs
