@@ -942,8 +942,26 @@ def market_orders(obs, me, private, counts, n_units):
                 # still on hand (have_w>0) stays reserve-gated as before --
                 # only a genuine zero-wheat emergency bypasses the cushion.
                 FEED_EMERGENCY_FLOOR = 30
-                feed_reserve = FEED_EMERGENCY_FLOOR if have_w == 0 else reserve
-                b = min(need_w - have_w, 10, int(max(0, money - feed_reserve) // wp))
+                if have_w == 0:
+                    # P3f self-play trace (seed 151042320 vs agents/main_v11.py):
+                    # this branch was firing almost every day (near-max WHEAT
+                    # buys 11 of 14 opening days) because the *normal* reserve
+                    # gate below routinely blocks restocking while cash is
+                    # tight, so the shed empties out and the floor fires again
+                    # tomorrow. Each trigger was funding the full 2-day
+                    # `need_w` buffer against the tiny floor, bleeding cash
+                    # that the reserve gate would otherwise have banked toward
+                    # the next land buy -- main.py ended that game with MORE
+                    # animals than v11 (8 vs 6) but far less money (6.6k vs
+                    # 15.3k). Only the true emergency ration (today's feed, no
+                    # forward buffer) needs the cushion bypass; the 2-day
+                    # buffer is a discretionary top-up and stays reserve-gated.
+                    feed_reserve = FEED_EMERGENCY_FLOOR
+                    emerg_need = placed_total + pending
+                    b = min(emerg_need - have_w, 10, int(max(0, money - feed_reserve) // wp))
+                else:
+                    feed_reserve = reserve
+                    b = min(need_w - have_w, 10, int(max(0, money - feed_reserve) // wp))
                 if b > 0:
                     buys_hi.append(["BUY_PRODUCT", "WHEAT", b])
                     money -= b * wp
