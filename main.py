@@ -462,19 +462,27 @@ def choose_crops(obs, me, private, counts, plant_slots):
             if day > 22:
                 share += 0.22
         elif crop == "TOMATO":
-            # ongoing crop: a plant set down by day ~18 still fires yield ticks to
-            # season end, and replay 104701051 shows tomato is the single biggest
-            # crop line for the winner (price ran 77 -> 238 as they kept ~22 tiles
-            # planted into day 22). Establish a little early, go heavy once cash
-            # is flowing.
-            share = 0.16 if early else 0.44 + 0.06 * demand[crop]
+            # TOP10_TEARDOWN finding 3: demoted from primary to opportunistic.
+            # The old share here (0.44+) was set from one old replay
+            # (104701051) where tomato ran 77->238 for the winner. A fresh
+            # 22-replay / 8-priced-game top-10 pull shows the opposite is
+            # true now -- TOMATO sits flat near its $60 base (61-95) almost
+            # the whole game in top-tier play (not actually scarce), and top
+            # players' realized field allocation matches: 1.3% tomato vs
+            # 58% strawberry. Keep it as a minor/opportunistic side bet
+            # (melon-style val gate) rather than a co-equal premium target.
+            share = 0.08 if early else (0.14 + 0.04 * demand[crop] if val >= 1.15 else 0.0)
             if day > 21:
                 share *= 0.7
         elif crop == "STRAWBERRY":
-            # safest premium: across 30 ladder games STRAWBERRY never ended below
-            # 185 (base 120) -- ongoing, high scarcity ceiling, no glut collapse.
-            # $100 seed + 10-day wait makes it a bad week-1 buy; ramp it after.
-            share = 0.0 if day < 4 else (0.12 if early else 0.30 + 0.05 * demand[crop])
+            # TOP10_TEARDOWN finding 3: promoted to the primary premium crop.
+            # Across 22 top-10-caliber replays STRAWBERRY reliably ran
+            # $150-236 (25-95% above its $120 base) through mid/late game
+            # before every game's final-day liquidation dump -- a real,
+            # sustained scarcity ceiling, unlike tomato's flat price. Top
+            # players commit ~58% of the field to it. $100 seed + 10-day
+            # wait still makes it a bad week-1 buy; ramp hard after.
+            share = 0.0 if day < 4 else (0.16 if early else 0.44 + 0.06 * demand[crop])
         else:  # MELON - scarcity side bet, hard cap, crashes on glut
             share = 0.0 if early else (0.10 if val >= 0.85 else 0.0)
         share *= max(0.30, min(2.0, val))
@@ -900,9 +908,18 @@ def market_orders(obs, me, private, counts, n_units):
         if nth < 2:
             ok = day <= 18 and fill >= 0.55 and money >= cost + 400 + 200 * nth
         else:
-            # P4a: Q4 ($4k) doubles the field to ~100 tiles -- never buy it
-            # without the crew to work it, or it just manufactures weeds29.
-            ok = (8 <= day <= 20 and fill >= 0.62 and n_units >= 12
+            # P4b (TOP10_TEARDOWN finding 1): 0/44 farm-samples across 22
+            # top-10-caliber ladder replays ever unlock the 4th quadrant --
+            # field capacity plateaus hard at 75 tiles (3 quadrants). Q4
+            # doubles the field to ~100 tiles without doubling the crew,
+            # which just manufactures weeds29 and adds walking distance for
+            # no matching production. The old gate (day 8-20, fill>=0.62,
+            # hands>=12, cost+2500) was permissive enough that we routinely
+            # cleared it locally anyway (median unlocked capacity by day 20
+            # was 100, i.e. all 4 quadrants) -- raise the hands bar well
+            # above what the crew-size data ever shows to effectively retire
+            # this buy, matching what real strong play does.
+            ok = (8 <= day <= 20 and fill >= 0.62 and n_units >= 18
                   and money >= cost + 2500)
         if ok:
             buys_hi.append(["BUY_LAND"])
