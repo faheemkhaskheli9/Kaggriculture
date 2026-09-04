@@ -22,9 +22,15 @@ def agent(obs):
         return v10.agent(obs)
     try:
         intents, confidence = _MODEL.predict(obs)
-        # Whole-turn abstention prevents a weak/out-of-distribution model from
-        # perturbing the tested teacher policy.
-        if not confidence or min(confidence) < _MODEL.confidence:
+        if not confidence:
+            return v10.agent(obs)
+        # Abstain per unit. An intent of -1 receives no learned priority bonus,
+        # so that unit follows the teacher assignment while confident units can
+        # still contribute; requiring min(confidence) previously disabled the
+        # model whenever any one of 10-14 workers was uncertain.
+        intents = [intent if conf >= _MODEL.confidence else -1
+                   for intent, conf in zip(intents, confidence)]
+        if all(intent < 0 for intent in intents):
             return v10.agent(obs)
         return expand(obs, intents=intents)
     except Exception:
