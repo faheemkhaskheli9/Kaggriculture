@@ -6,15 +6,51 @@ Examples:
     python test.py --games 20 --opponents starter random main_v1.py --save-worst 5
     python test.py --games 40 --seed 7           # reproducible; paired seat-swap on one map
     python test.py --games 40 --seed -1          # fresh random env seed per game
+    python test.py --competition --games 10      # all agents, ladder-like matches
 """
 import argparse
+import ast
 import gzip
 import json
 import math
+import random
 import statistics
 from pathlib import Path
 
 from kaggle_environments import make
+
+
+ROOT = Path(__file__).resolve().parent
+COMPETITION_CONFIG = {
+    "episodeSteps": 720,
+    "actTimeout": 1,
+    "runTimeout": 1200,
+    "startingMoney": 3000,
+    "turnsPerDay": 24,
+    "maxMarketOrdersPerTurn": 10,
+}
+
+
+def discover_agents(candidate="main.py"):
+    """Find runnable repository agents without maintaining another stale list."""
+    candidate_path = (ROOT / candidate).resolve()
+    found = []
+    for path in sorted(ROOT.rglob("*.py")):
+        relative = path.relative_to(ROOT)
+        if (path.name.startswith("_") or path.resolve() == candidate_path or
+                any(part.startswith(".") for part in relative.parts)):
+            continue
+        try:
+            source = path.read_text(encoding="utf-8", errors="ignore")
+            tree = ast.parse(source, filename=str(path))
+            if not any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and
+                       node.name == "agent" for node in tree.body):
+                continue
+        except (OSError, SyntaxError):
+            continue
+        found.append(relative.as_posix())
+    # Built-ins are useful controls and are part of the actual environment.
+    return found + ["starter", "random", "pass"]
 
 
 def money_from_final(final):
@@ -117,16 +153,18 @@ def percentile(values, fraction):
 
 
 def run_game(candidate, opponent, candidate_seat, seed=None, keep_replay=False,
-             save_dir=None, save_tag=None):
+             save_dir=None, save_tag=None, realistic=False):
     """Play one game. If ``save_dir`` is given, the full replay (gzipped) and the
     per-step per-agent stdout/stderr logs are written there before the env is
     dropped -- ``<tag>.replay.json.gz`` + ``<tag>.logs.json``. The replay is kept
     in RAM (``row["replay"]``) only when ``keep_replay`` is set."""
     agents = [candidate, opponent] if candidate_seat == 0 else [opponent, candidate]
-    config = {"episodeSteps": 720}
+    config = dict(COMPETITION_CONFIG) if realistic else {"episodeSteps": 720}
     if seed is not None:
         config["seed"] = seed
-    env = make("kaggriculture", configuration=config, debug=True)
+    # Kaggle swallows agent exceptions; realistic mode deliberately reproduces
+    # that behaviour. The normal regression mode keeps debug traces visible.
+    env = make("kaggriculture", configuration=config, debug=not realistic)
     env.run(agents)
     final = env.steps[-1]
     statuses = [str(s.status) for s in final]
@@ -243,7 +281,7 @@ def save_worst(rows, opponent, count, output_dir):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidate", default="main.py")
-    parser.add_argument("--incumbent", default="agents/main_v5.py")
+    parser.add_argument("--incumbent", default="agents/main_v6.py")
     parser.add_argument("--opponents", nargs="+")
     parser.add_argument("--suite", action="store_true",
                         help="Benchmark against the archetype bots in bots/ "
@@ -256,13 +294,23 @@ def main():
                              "+ wheatflood + premium + starter. Promote an economy "
                              "change only if score-rate >= 45%% vs BOTH animal "
                              "opponents and OVERALL mean/p10 are non-worse.")
+    parser.add_argument("--all-agents", action="store_true",
+                        help="Recursively discover every repository Python file "
+                             "with agent(), plus the environment built-ins.")
+    parser.add_argument("--realistic", action="store_true",
+                        help="Use stock competition limits, Kaggle-style error "
+                             "handling, random seats, and independent 9-digit seeds.")
+    parser.add_argument("--competition", action="store_true",
+                        help="Shortcut for --all-agents --realistic.")
     parser.add_argument("--games", type=int, default=20,
-                        help="Total games per opponent; seats alternate.")
+                        help="Games per opponent; regression mode alternates seats.")
     parser.add_argument("--seed", type=int, default=10000000,
                         help="Base episode seed. Each seat-swapped pair of games "
                              "shares one map seed so the candidate plays both "
                              "seats of an identical world; pass a negative value "
                              "to let the env roll a fresh random seed per game.")
+    parser.add_argument("--pick-seed", type=int,
+                        help="Make realistic seat/episode-seed draws reproducible.")
     parser.add_argument("--save-worst", type=int, default=0)
     parser.add_argument("--replay-dir", default="benchmark_replays")
     args = parser.parse_args()
@@ -274,26 +322,39 @@ def main():
     ]
     gate = [
         "bots/bot_animalfactory_v2.py", "bots/bot_animalfarm.py",
-        "agents/main_v4.py", "main.py", "bots/bot_wheatflood.py",
+        "agents/main_v4.py", "agents/main_v6.py", "bots/bot_wheatflood.py",
         "bots/bot_premium.py", "starter",
     ]
+    use_all = args.all_agents or args.competition
+    realistic = args.realistic or args.competition
     opponents = args.opponents or (
+        discover_agents(args.candidate) if use_all else
         gate if args.gate else
         suite if args.suite else
         ["starter", "random", args.incumbent])
-    if args.games < 2:
-        parser.error("--games must be at least 2 so both seats are tested")
+    if args.games < (1 if realistic else 2):
+        parser.error("--games must be >= 1 in competition mode, otherwise >= 2")
 
     all_rows = []
-    seed_note = "random/game" if args.seed < 0 else f"base {args.seed} (shared per seat-pair)"
-    print(f"Candidate: {args.candidate} | games/opponent: {args.games} | seed: {seed_note}")
+    rng = random.Random(args.pick_seed)
+    seed_note = ("independent 9-digit seeds" if realistic else
+                 "random/game" if args.seed < 0 else
+                 f"base {args.seed} (shared per seat-pair)")
+    mode = "competition" if realistic else "regression"
+    print(f"Candidate: {args.candidate} | opponents: {len(opponents)} | "
+          f"games/opponent: {args.games} | mode: {mode} | seed: {seed_note}")
     for opponent in opponents:
         rows = []
         for game_index in range(args.games):
-            seat = game_index % 2
-            game_seed = None if args.seed < 0 else args.seed + game_index // 2
+            if realistic:
+                seat = rng.randint(0, 1)
+                game_seed = rng.randint(100_000_000, 999_999_999)
+            else:
+                seat = game_index % 2
+                game_seed = None if args.seed < 0 else args.seed + game_index // 2
             row = run_game(args.candidate, opponent, seat, seed=game_seed,
-                           keep_replay=args.save_worst > 0)
+                           keep_replay=args.save_worst > 0,
+                           realistic=realistic)
             rows.append(row)
             if (game_index + 1) % max(1, args.games // 10) == 0:
                 print(f"  {opponent}: {game_index + 1}/{args.games}", end="\r")
