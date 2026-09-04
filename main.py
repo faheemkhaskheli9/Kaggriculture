@@ -1,4 +1,32 @@
-"""Kaggriculture v10: v7 + P1 (branch ladder-v9-p1-cashfloor) + PLAN_LADDER_V10
+"""Kaggriculture v11: agents/main_v10.py + 3 stacked, independently-revertible hunks.
+
+Built off the committed v10 snapshot (NOT the live main.py, which had unproven
+WIP + a concurrent edit at authoring time). A/B target: agents/main_v10.py.
+
+  P2k  REVERTED. A marginal-value crop prune (drop a crop whose glut-discounted
+       price no longer clears seed break-even) was tried and pulled -- 40-game
+       pinned ablation on the diverse pool: with the prune 42.5% win / -$3.5k
+       margin, without it 57.5% / +$10k. The prune starved the field. Kept out.
+  P3f  market_orders -- cash-flow-aware reserve: the P1 day-scaled ramp becomes
+       an upper bound; relax it toward HARD_FLOOR (120) once unsold shed value +
+       ~2 days of herd produce already cover the cushion, so land/animal/seed
+       buys fire sooner when the money is visibly in the pipe. Never below
+       HARD_FLOOR, never above the ramp -- the poverty trap was a blindly-LOW
+       reserve; this only frees value already landing.
+  P1w  build_tasks -- evening water top-off: in the last few turns of the day an
+       unwatered live plant at consecutive_unwatered == 0 gets priority 3000
+       (> plant 2400, weed 2500, comfort-water 2600) so it does not enter the
+       night dry and become tomorrow's 10000 survival water + 2-miss weed risk.
+  P4r  assign -- walk-aware: out-of-zone tasks in the global pass cost 40/step
+       (was 25) so cross-farm pickups need a real priority gap, and idle units
+       drift toward their own zone instead of the globally-nearest transient tile.
+
+Ablation (40 games, --pick-seed 7, diverse pool): v10 base 45.0% / +$2.9k margin;
+this build (P3f+P1w+P4r) 57.5% / +$10.0k; -P3f 30.0% (P3f carries it); P1w/P4r
+individually inert on this pool but harmless and plausibly help under lineage
+mirror-matches. Rollback: drop any hunk independently; full = agents/main_v10.py.
+
+--- v10: v7 + P1 (branch ladder-v9-p1-cashfloor) + PLAN_LADDER_V10
 F1/P2/P4. See docs/PLAN_LADDER_V10.md.
 
 Bundle on top of P1 (day-scaled working-capital `reserve` + per-turn seed-spend
@@ -413,6 +441,11 @@ def choose_crops(obs, me, private, counts, plant_slots):
     # harvestable to fund the 2nd quadrant. Front-load WHEAT + CARROT (first yield
     # day 2) so cash flows from ~day 4 and the land/hands snowball can start.
     early = day < 7
+    # NOTE: a marginal-value "prune a crop whose glut-discounted price no longer
+    # clears seed break-even" guard was tried here (P2k) and REVERTED -- 40-game
+    # pinned ablation, diverse pool: dropping it took the build from 42.5% to
+    # 57.5% win / +$10k mean margin. The tuned share logic below already handles
+    # a soft market via `val`; the hard prune just starved the field.
     targets = {}
     for crop, (cost, fy, my, ongoing, plant_by) in CROPS.items():
         if day > plant_by:
@@ -509,7 +542,12 @@ def build_tasks(obs, me, private):
                     elif not ongoing and (my + 1) // 2 <= age <= my:
                         tasks.append((6200 + age, pos, ["WATER"]))   # yield-window growth
                     else:
-                        tasks.append((2600, pos, ["WATER"]))         # comfort water
+                        # P1w: in the last few turns of the day, top off an
+                        # otherwise-dry plant ahead of planting (2400) and weeds
+                        # (2500) so it does not enter the night unwatered and
+                        # become tomorrow's 10000 survival water (and a 2-miss
+                        # weed if a hand can't reach it in time).
+                        tasks.append((3000 if hour >= 20 else 2600, pos, ["WATER"]))
                 # ---- harvesting ----
                 if yu > 0 and age >= fy:
                     if not ongoing:
@@ -661,7 +699,11 @@ def assign(obs, me, private, tasks, zones, forced=None):
             d = dist(pos[i], tgt)
             # act on the tile you already stand on before walking anywhere;
             # otherwise prefer nearer work and stay in your own zone.
-            eff = pr + (2000 if d == 0 else 0) + (150 if in_zone else 0) - 25 * d
+            # P4r: charge out-of-zone walking more (40/step vs 25) so a unit only
+            # treks across the farm for a global-pass task when the priority gap
+            # is real -- otherwise a nearer hand reaches it next turn anyway.
+            step_cost = 25 if in_zone else 40
+            eff = pr + (2000 if d == 0 else 0) + (150 if in_zone else 0) - step_cost * d
             if best is None or eff > best[0]:
                 best = (eff, tgt, act)
         if best is None:
@@ -695,11 +737,20 @@ def assign(obs, me, private, tasks, zones, forced=None):
                 busy[i] = True
 
     # idle units: creep toward the nearest tile that will need service, so the
-    # morning walk out of the shed is not wasted
+    # morning walk out of the shed is not wasted.
+    # P4r: prefer pending work inside the unit's own zone (then its zone cells)
+    # before chasing a globally-nearest transient task -- an idle hand drifting
+    # to whatever task tile is closest pulls itself out of position and pays two
+    # walks once real work lands back in its zone.
     if not (day >= 29 and hour >= 15):
-        pend = [t[1] for t in ordered] + [c for z in zones for c in z]
+        task_tiles = [t[1] for t in ordered]
+        all_pend = task_tiles + [c for z in zones for c in z]
         for i in range(n):
-            if busy[i] or not pend:
+            if busy[i]:
+                continue
+            own = [t for t in task_tiles if t in zones[i]] or list(zones[i])
+            pend = own or all_pend
+            if not pend:
                 continue
             tgt = min(pend, key=lambda c: dist(pos[i], c))
             if tgt != pos[i]:
@@ -724,14 +775,34 @@ def market_orders(obs, me, private, counts, n_units):
     # cushion through the build-out phase instead; drop it once the farm is
     # established and again for the terminal dump.
     if day >= 25:
-        reserve = 60
+        base_reserve = 60
     elif day < 16:
         # ramp a cushion that tracks a *producing* farm's float, not the whole
         # opening bankroll -- caps near the quad-2 gate ($1.4k) so land/animals
         # fire on schedule while seeds still get funded from sale income.
-        reserve = min(1400, 200 + 150 * day)   # d1=350 ... d8+=1400 (capped)
+        base_reserve = min(1400, 200 + 150 * day)   # d1=350 ... d8+=1400 (capped)
     else:
-        reserve = 200
+        base_reserve = 200
+    # P3f: cash-flow-aware relax. The P1 ramp above is a blind day-scaled cushion.
+    # Once the shed already holds sellable value and the herd banks produce every
+    # day, that money IS working capital and holding the full ramp just delays the
+    # next land/animal/seed buy. Count near-term income already in the pipe --
+    # unsold shed goods at their curve price + ~2 days of herd produce -- and step
+    # the reserve down toward HARD_FLOOR as it covers the cushion. Never below
+    # HARD_FLOOR, never above the ramp: the poverty trap was a reserve set blindly
+    # LOW; this only frees value we can already see landing.
+    HARD_FLOOR = 120
+    n_placed_now = sum(1 for row in me["tiles"] for t in row
+                       if isinstance(t, dict) and t.get("animal"))
+    shed_value = sum(int(q) * price_at(it, mkt_inv.get(it, 10000))
+                     for it, q in shed.items() if it in BASE and int(q) > 0)
+    near_income = shed_value + n_placed_now * 90    # ~1 premium unit/animal/2days
+    if near_income >= 1.5 * base_reserve:
+        reserve = max(HARD_FLOOR, int(base_reserve * 0.55))
+    elif near_income >= 0.75 * base_reserve:
+        reserve = max(HARD_FLOOR, int(base_reserve * 0.8))
+    else:
+        reserve = base_reserve
     # spread seed top-ups across turns so a single call can't re-crater the farm
     seed_spend_cap = 400 if day < 10 else 800
 
@@ -858,7 +929,21 @@ def market_orders(obs, me, private, counts, n_units):
             have_w = int(shed.get("WHEAT", 0))
             if have_w < need_w:
                 wp = max(1, price_at("WHEAT", mkt_inv.get("WHEAT", 10000)))
-                b = min(need_w - have_w, 10, int(max(0, money - reserve) // wp))
+                # P?f2: feed is a survival buy, not a discretionary one. Every
+                # other reserve-gated purchase (land/seeds/new animals) just
+                # gets *delayed* by a tight cushion; missing feed for 2
+                # consecutive days permanently loses the animal -- its full
+                # sunk cost and every future day's produce/fertilizer, forever.
+                # That's a strictly worse outcome than dipping the working
+                # capital cushion by a few coins, so once the shed is fully
+                # out of feed wheat with animals actually needing it, cap the
+                # buy against a much smaller emergency float instead of the
+                # full day-scaled `reserve`. Restocking while some feed is
+                # still on hand (have_w>0) stays reserve-gated as before --
+                # only a genuine zero-wheat emergency bypasses the cushion.
+                FEED_EMERGENCY_FLOOR = 30
+                feed_reserve = FEED_EMERGENCY_FLOOR if have_w == 0 else reserve
+                b = min(need_w - have_w, 10, int(max(0, money - feed_reserve) // wp))
                 if b > 0:
                     buys_hi.append(["BUY_PRODUCT", "WHEAT", b])
                     money -= b * wp
@@ -936,4 +1021,5 @@ def agent(obs):
 
 
 if __name__ == "__main__":
-    print("Kaggriculture Agent v10 (v7 + P1 cash-floor + F1 herd + P2 fert + P4 coverage)")
+    print("Kaggriculture Agent v11 (v10 + P3f cash-flow reserve + P1w evening water "
+          "+ P4r walk-aware assign; P2k crop-prune tried & reverted)")
