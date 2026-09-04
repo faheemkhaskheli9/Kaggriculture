@@ -26,7 +26,7 @@ the whole repo.
 | [04-engine-internals.md](04-engine-internals.md) | Line-level behaviour of the env: per-step sequence, exact yield formulas, `consecutive_unwatered`/`consecutive_unfed`, decay timing, **reward-lock timing (step 718)**, edge cases and gotchas. |
 | [05-observation-action-api.md](05-observation-action-api.md) | Exact shape of `obs`, the action dict, every tile/plant/animal field, and the traps (shop-name casing, `step` vs `day`/`hour`, atomic PLANT, 10-order cap). |
 | [06-strategy-playbook.md](06-strategy-playbook.md) | Opponent archetypes, phase plan, the ranked levers, the coin-ceiling analysis, and the full **tried-and-reverted** log so we don't re-run dead ends. |
-| [07-codebase-and-workflow.md](07-codebase-and-workflow.md) | `main.py` (v5) architecture, the `main_v*.py` lineage, `bots/`, `test.py` gate, Kaggle CLI + `download_episodes.py` workflow. |
+| [07-codebase-and-workflow.md](07-codebase-and-workflow.md) | `main.py` (v10) architecture, the `agents/main_v*.py` lineage, `bots/` + `contenders/`, the `compete.py` ladder-like gate + `tools/analyze_runs.py` analysis pipeline, `test.py`, the standing iteration loop, Kaggle CLI + `download_episodes.py` + `tools/ladder_analyze.py`. |
 | [08-kaggle-discussion-notes.md](08-kaggle-discussion-notes.md) | Source-linked community findings: town-demand economics, livestock/fertilizer value, walking efficiency, fourth-land ROI, engine 1.32.7 changes, hybrid ML, and prioritized experiments. |
 
 ---
@@ -83,4 +83,15 @@ usually sit **well above base** all season.
 lever); MILK/WOOL/FERTILIZER floor to single digits when both players sell them;
 STRAWBERRY is the safe premium; MELON crashes on any glut; the game is decided
 days 12–20 by compounding scale (land + animals + rotation); movement is the
-scarce resource; `main.py` ladder progress is 333 → 477.
+scarce resource; `main.py` ladder progress is 333 → 477. Worst matchup =
+`animal_factory` (~56% of ladder games): mid-game cash crater vs its
+WHEAT-as-working-capital engine (`docs/PLAN_LADDER_ECON.md`).
+
+**Workflow:** iterate one attributable change at a time. `python compete.py
+--games 120` (ladder-like: random pool opp, random seat, stock config, silent
+exception→all-PASS) archives to `compete_runs/<stamp>/`; `python
+tools/analyze_runs.py --last N` reduces that to per-opponent / per-archetype
+W/T/L + move%/plant/weed/sell diagnostics + a worst-games loss diagnosis. Local
+**cannot gate a `main.py` economy change** (only catches trivial-bot
+regressions + errors) — the real gate is a ladder submission read with
+`tools/ladder_analyze.py`. Full detail in `07`.

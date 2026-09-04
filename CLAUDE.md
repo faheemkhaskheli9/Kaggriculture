@@ -36,22 +36,43 @@ package — read it directly when a mechanic is unclear.
 
 ## Commands
 
-Local single game (edit the file to change opponents / config):
+**`compete.py` — the ladder-like gate (use this by default).** One match =
+random opponent from the pool (`bots/` archetypes + `contenders/` + every
+`agents/*.py` snapshot + `starter`), random 9-digit seed, random seat, stock
+competition config (`startingMoney=3000`, `actTimeout=1`, `debug=False` so a
+raised exception silently falls back to all-PASS exactly like Kaggle). Every run
+archives `manifest.json` + per-game `*.replay.json.gz` + `*.logs.json` under
+`compete_runs/<stamp>/`.
 
 ```bash
-python local.py
+python compete.py --games 120                       # full pool, fresh opp+seed each
+python compete.py --agent main_herdbatch.py --games 120 --pick-seed 4242
+python compete.py --opponent bots/bot_animalfactory_v2.py --games 20
+python compete.py --pool bots/bot_wheatflood.py starter --games 10
 ```
 
-Paired benchmark — the real regression gate. Alternates seats, reports W/T/L,
-mean/median/p10 coins, and error count:
+**`tools/analyze_runs.py` — the results / replay / log analysis pipeline.**
+Reduces a `compete_runs/` archive to overall W/T/L + score-rate, per-opponent
+and per-archetype breakdowns, movement / plant / weed / animal / sell
+diagnostics, surfaced agent exceptions, and a worst-games loss diagnosis with
+the day the coin lead flips. Same archetype buckets as `tools/ladder_analyze.py`.
 
 ```bash
-python test.py --games 20
-python test.py --games 40 --candidate main.py --incumbent main_v1.py
-python test.py --games 20 --opponents starter random main_v1.py --save-worst 5
+python tools/analyze_runs.py                        # newest run
+python tools/analyze_runs.py --last 3               # merge 3 newest runs
+python tools/analyze_runs.py --compare <stampA> <stampB>
+python tools/analyze_runs.py --last 2 --json summary.json --csv games.csv
 ```
 
-Built-in opponents available by name: `pass`, `random`, `starter`.
+`test.py` — older paired seat-alternating benchmark (fixed opponent list, shared
+per-pair seeds). Still useful for a tight A/B on one hypothesis; `compete.py` is
+the ladder model. Built-in opponents by name: `pass`, `random`, `starter`.
+
+```bash
+python test.py --games 40 --candidate main.py --incumbent agents/main_v10.py
+```
+
+Local single game (edit the file to change opponents / config): `python local.py`
 
 Kaggle CLI (full workflow in `AGENTS.md`; `commands.txt` has recent ad-hoc
 invocations):
@@ -78,7 +99,20 @@ Multi-file agents must be bundled as a tar.gz with `main.py` at the root.
   `town.unlocked_shops` are `UPPER_SNAKE` (`PIZZA_SHOP`) — the old title-case
   lookup bug in `main_600.py`/`main_v1.py` zeroed every shop-demand signal.
 
-## Agent architecture (`main.py`, "v3/v4")
+## Agent lineage
+
+`main.py` is the promoted agent. Snapshots live in `agents/main_v*.py` (v1→v11)
+plus `agents/main_p2.py` / `main_p3.py` forks; the newest snapshot is the
+`test.py` incumbent and every snapshot is a `compete.py` pool opponent. Ladder
+history: v1 **333** → v2/main_600 **477** (the ML probe sub 55960518 scored
+202.5 and is not an agent). Committed `main.py` @ `45ce7bd` = **v10** (v7 zoned
+core + P1 day-scaled reserve + F1 herd-match + P2 fertilizer staple + P4
+coverage cap). `agents/main_v11.py` and `main_herdbatch.py` are in-flight
+candidates — see `experiments/LEDGER.md` for the per-version record and
+`knowledge-base/07-codebase-and-workflow.md` for the authoritative file map and
+pipeline walkthrough.
+
+## Agent architecture
 
 Turn-by-turn stateless recompute, but structured so labour isn't wasted on
 movement (the failure mode of the 600-score agent, which spent ~76% of
@@ -134,22 +168,59 @@ the memory notes):
 
 ## Benchmarking notes
 
-Real ladder is **not** self-play. `test.py` vs `starter`/`main_v1`/`main_600`
-shows large wins (48–0–0, ~28k+ coins) but the Kaggle score was 600 — local
-opponents don't model competitive market contention. Collect real ladder
-replays/logs and reason about opponent archetypes before large strategy changes.
+Real ladder is **not** self-play, and **the local harness cannot gate a `main.py`
+economy change** — repeatedly confirmed (v6, v8, v8b, PLAN_300K s1–2): a change
+can be neutral/positive vs `starter` and every isolated probe yet net-negative
+vs the active bots, or vice-versa. What local *can* catch: a large regression vs
+a trivial bot (`starter`/`random`) is a real bug signal, not noise
+(`docs/PLAN_LADDER_V10.md` §3). Workflow: one attributable change per submission
+→ `compete.py --games 120` for a sanity read + `tools/analyze_runs.py` for the
+per-archetype diagnosis → submit → after ~15–20 episodes
+`download_episodes.py` + `tools/ladder_analyze.py <sub>` → compare the
+`vs animal_factory` row to the prior baseline. `animal_factory` is ~56% of
+ladder games and the worst matchup (`docs/PLAN_LADDER_ECON.md`), so
+`bots/bot_animalfactory_v2.py` carries extra weight in the pool.
+
+**Submission discipline (2026-09-04, see `PLAN_RATING_IMPROVEMENT.md`).** Only
+your **latest 2** Kaggle submissions are tracked/active — every submission
+either fills an empty tracked slot or evicts one of the current two. Never
+submit anything but the promoted `main.py` to the real `kaggriculture` slug
+(no `agents/main_v*.py`, no `main_auto.py`, no ML probes) — a broken/abandoned
+file submitted "just to check" occupies a live rating slot exactly as long as
+a good one would. One attributable change per submission, and submit nothing
+else that day so it gets a clean window before being displaced. Judge
+promote/revert decisions by **win-rate** (score-rate), not mean/margin —
+rating is Bradley-Terry over win/loss/tie only, margin is discarded.
 
 ## File map
 
-- `main.py` — current agent (v3 core + v4 animal module). The submission.
-- `main_v1.py`, `main_600.py` — older versions kept as benchmark opponents
-  (`main_600.py` scored 600 on the ladder; both have the shop-name lookup bug).
-- `main_600.py` also = the "v2" baseline the improvement plans dissect.
-- `local.py` — one-off local game runner. `test.py` — paired benchmark harness.
-- `AGENTS.md` — getting-started + full Kaggle CLI workflow.
-- `README_2.md` — full game rules, crop/animal/shop tables, price function,
-  turn-processing order. `readme.md` — competition blurb. `how to play.md` —
-  rules narrative.
-- `PLAN_3000.md`, `SCORE_IMPROVEMENT_PLAN.md`, `STRATEGY.md`, `WINNING_PLAN.md` —
-  strategy analysis and roadmap (read `PLAN_3000.md` first for current thinking).
-- `replays/`, `logs/`, `benchmark_replays/` — downloaded/generated episode data.
+- `main.py` — the submission (promoted agent). `main_herdbatch.py`, `main_ml.py`,
+  `main_ai.py` — candidate forks at repo root.
+- `agents/main_v*.py`, `agents/main_p*.py` — the version lineage; `compete.py`
+  pool opponents + `test.py` incumbents.
+- `bots/` — hand-written opponent archetypes on `bots/_kagri_botlib.py`
+  (`bot_animalfactory_v2`, `bot_animalfarm`, `bot_wheatflood`, `bot_premium`,
+  `bot_melonmono`). `contenders/` — a second archetype set on `contenders/_engine.py`.
+- `compete.py` — ladder-like match harness → `compete_runs/<stamp>/`.
+  `tools/analyze_runs.py` — analysis pipeline over those archives.
+  `tools/ladder_analyze.py` / `classify_ladder.py` / `probe_game.py` /
+  `early_probe.py` — real-ladder replay analysis. `test.py` — paired A/B.
+  `local.py` — one-off game.
+- `download_episodes.py` — bulk pull of ladder replays+logs → `replays/`,
+  `logs/`, `episodes/` (run with Python 3.13). `download_top_replays.py` —
+  top-of-leaderboard replays.
+- `experiments/LEDGER.md` — one row per agent version (change → local → ladder →
+  status). `experiments/TOKENS.md` — per-session token spend.
+- `ml/` — Optuna / CMA-ES engine-config search + IL/self-play scaffolding
+  (`ml/loop.py` supervisor never submits or overwrites `main.py`).
+- `docs/` — strategy plans and roadmaps. Read `docs/PLAN_LADDER_NEXT.md`
+  (**current plan** — corrected ladder facts + routing/top-10-teardown
+  sequence) first, then `docs/PLAN_LADDER_ECON.md` (the 75-replay archetype
+  sweep). `docs/PLAN_LADDER_V10.md` is the prior plan, kept as history/
+  rollback reference. `docs/PLAN_3000.md` / `PLAN_300K.md` = coin-ceiling
+  analysis.
+- `knowledge-base/` — the consolidated game/strategy/workflow reference (start at
+  `INDEX.md`). `AGENTS.md` — Kaggle CLI workflow. `README_2.md` / `how to play.md`
+  — full rules.
+- `replays/`, `logs/`, `episodes/`, `compete_runs/`, `benchmark_replays/` —
+  episode data (downloaded + generated).
