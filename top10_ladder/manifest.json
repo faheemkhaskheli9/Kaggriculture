@@ -1,0 +1,119 @@
+{
+  "competition": "kaggriculture",
+  "generated_at": "2026-09-04T14:50:09+00:00",
+  "top": 10,
+  "episodes_per_team": 1,
+  "unique_episodes": 7,
+  "rows": [
+    {
+      "rank": 1,
+      "team": "Crop Dusta",
+      "score": "3021.4",
+      "team_id": 16714457,
+      "submission_id": 55929317,
+      "episode_id": 105494944,
+      "create_time": "2026-09-04T14:37:49.410000",
+      "agent_0_log": "forbidden",
+      "agent_1_log": "forbidden"
+    },
+    {
+      "rank": 2,
+      "team": "Jesse Bullard",
+      "score": "2992.7",
+      "team_id": 16621243,
+      "submission_id": 55994794,
+      "episode_id": 105494944,
+      "create_time": "2026-09-04T14:37:49.410000",
+      "agent_0_log": "forbidden",
+      "agent_1_log": "forbidden"
+    },
+    {
+      "rank": 3,
+      "team": "keiz",
+      "score": "2963.3",
+      "team_id": 16767215,
+      "submission_id": 55982835,
+      "episode_id": 105494829,
+      "create_time": "2026-09-04T14:37:49.210000",
+      "agent_0_log": "forbidden",
+      "agent_1_log": "forbidden"
+    },
+    {
+      "rank": 4,
+      "team": "Giulio Ravasio",
+      "score": "2926.5",
+      "team_id": 16674508,
+      "submission_id": 55977032,
+      "episode_id": 105494776,
+      "create_time": "2026-09-04T14:37:49.086000",
+      "agent_0_log": "forbidden",
+      "agent_1_log": "forbidden"
+    },
+    {
+      "rank": 5,
+      "team": "AI是我的豆包",
+      "score": "2918.7",
+      "team_id": 16728071,
+      "submission_id": 55990218,
+      "episode_id": 105495705,
+      "create_time": "2026-09-04T14:41:55.790000",
+      "agent_0_log": "forbidden",
+      "agent_1_log": "forbidden"
+    },
+    {
+      "rank": 6,
+      "team": "MtN",
+      "score": "2904.9",
+      "team_id": 16655383,
+      "submission_id": 55982036,
+      "episode_id": 105494940,
+      "create_time": "2026-09-04T14:37:49.403000",
+      "agent_0_log": "forbidden",
+      "agent_1_log": "forbidden"
+    },
+    {
+      "rank": 7,
+      "team": "Andrey Tikhomirov",
+      "score": "2898.3",
+      "team_id": 16749520,
+      "submission_id": 55994691,
+      "episode_id": 105494817,
+      "create_time": "2026-09-04T14:37:49.179000",
+      "agent_0_log": "forbidden",
+      "agent_1_log": "forbidden"
+    },
+    {
+      "rank": 8,
+      "team": "薄和叶 Lv.INF",
+      "score": "2877.8",
+      "team_id": 16743484,
+      "submission_id": 55982173,
+      "episode_id": 105494817,
+      "create_time": "2026-09-04T14:37:49.179000",
+      "agent_0_log": "forbidden",
+      "agent_1_log": "forbidden"
+    },
+    {
+      "rank": 9,
+      "team": "Yuan800",
+      "score": "2869.6",
+      "team_id": 16698308,
+      "submission_id": 55982178,
+      "episode_id": 105494829,
+      "create_time": "2026-09-04T14:37:49.210000",
+      "agent_0_log": "forbidden",
+      "agent_1_log": "forbidden"
+    },
+    {
+      "rank": 10,
+      "team": "Syed Asad Ali",
+      "score": "2848.9",
+      "team_id": 16685634,
+      "submission_id": 55995673,
+      "episode_id": 105494825,
+      "create_time": "2026-09-04T14:37:49.205000",
+      "agent_0_log": "forbidden",
+      "agent_1_log": "forbidden"
+    }
+  ]
+}
