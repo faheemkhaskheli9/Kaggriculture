@@ -51,3 +51,8 @@ python test.py --games 20 --candidate main_ai.py --incumbent main.py
 Without `intent_model.json`, or when model confidence is low, `main_ai.py`
 returns the v10 action unchanged. PPO remains gated on completing and validating
 the fast environment clone.
+
+Movement labels are look-ahead relabeled to the task that the same unit
+eventually executes within the day. Training reports both raw validation
+accuracy and balanced accuracy; use balanced accuracy to catch a model that
+only predicts WATER/IDLE. Confidence abstention is applied per unit.

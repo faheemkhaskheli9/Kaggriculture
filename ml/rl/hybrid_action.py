@@ -163,10 +163,12 @@ def infer_intent(unit_action) -> int:
         return int(Intent.WATER)
     if op == "HARVEST":
         return int(Intent.HARVEST)
-    if op == "PLANT":
+    if op in ("PLANT", "DIG"):
         return int(Intent.PLANT)
     if op in ("PLACE", "BUILD_COOP", "BUILD_PASTURE"):
         return int(Intent.PLACE_BUILD)
-    if op in ("FEED", "CARE", "COLLECT_FERTILIZER"):
+    if op in ("FEED", "CARE", "COLLECT_FERTILIZER", "PICKUP"):
         return int(Intent.FEED_CARE)
+    if op == "DROP":
+        return int(Intent.HARVEST)
     return int(Intent.IDLE)

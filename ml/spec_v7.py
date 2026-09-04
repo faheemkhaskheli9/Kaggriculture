@@ -102,6 +102,21 @@ PHASE1_V7 = [
     "animal_buf_base", "animal_buf_per_head", "a_COW",
     "sell_cap_staple", "sell_cap_contested", "sell_keep_staple", "contested_floor_frac",
 ]
+
+# Focused response space for the ladder's dominant animal-factory matchup.
+# Keep this deliberately smaller than PHASE2: it gives the optimiser enough
+# control over herd tempo, species mix, feed liquidity, and contested sales
+# without letting unrelated crop/field knobs hide the causal signal.
+ANIMAL_V7 = [
+    "reserve_ramp_base", "reserve_ramp_slope", "reserve_ramp_cap", "reserve_mid",
+    "seed_cap_early", "seed_cap_late", "hire_q2", "hire_full",
+    "animal_buf_base", "animal_buf_per_head", "animal_freeze_day",
+    "opp_animal_thresh", "opp_animal_by_day",
+    "a_COW", "a_GOOSE", "a_SHEEP_wool",
+    "ac_COW", "ac_GOOSE", "ac_SHEEP",
+    "animal_cap_q1", "animal_cap_q2", "animal_cap_full", "animal_cap_contested",
+    "sell_cap_contested", "contested_floor_frac", "full_dump_day",
+]
 PHASE2_V7 = list(PARAM_SPACE_V7)
 
 

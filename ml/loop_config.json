@@ -1,0 +1,53 @@
+{
+  "download": {
+    "enabled": false,
+    "required": false,
+    "args": ["--agents", "0", "--skip-validation"]
+  },
+  "index": {
+    "enabled": true,
+    "max_new_per_cycle": 50,
+    "roots": ["replays", "compete_runs", "benchmark_replays", "tournament_replays"],
+    "db": "ml/artifacts/state/replays.sqlite3"
+  },
+  "preflight": {
+    "enabled": true,
+    "engine": "v7",
+    "league": "quick",
+    "games": 2,
+    "workers": 2,
+    "seed": 9000000,
+    "timeout_seconds": 600
+  },
+  "optimize": {
+    "enabled": true,
+    "out": "ml/artifacts/continuous/animal_v1",
+    "args": [
+      "--engine", "v7", "--knobs", "animal", "--league", "ladder_econ",
+      "--heldout", "heldout", "--games", "6", "--generations", "40",
+      "--popsize", "12", "--workers", "2", "--rotate-seed",
+      "--screen-games", "2", "--screen-league", "quick",
+      "--screen-top-fraction", "0.34"
+    ]
+  },
+  "gate": {
+    "enabled": true,
+    "engine": "v7",
+    "league": "ladder_econ",
+    "games": 50,
+    "workers": 2,
+    "seed": 70000000,
+    "incumbent_params": "default",
+    "bootstrap_samples": 10000,
+    "require_paired_improvement": true,
+    "min_score_delta_lcb95": 0.0,
+    "min_margin_delta": 0,
+    "min_mean_score_rate": 0.5,
+    "min_animal_score_rate": 0.5,
+    "min_p10_coins": 0,
+    "max_terminal_unsold": 3,
+    "max_plant_deaths": 0,
+    "max_animal_escapes": 0,
+    "max_ms_step": 4
+  }
+}

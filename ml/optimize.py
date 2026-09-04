@@ -22,6 +22,17 @@ import csv
 import json
 import os
 import time
+from pathlib import Path
+
+# On Windows every ProcessPoolExecutor worker imports this module again.  NumPy's
+# BLAS backend otherwise creates a full native thread pool in every worker; with
+# a dozen evaluators that can exhaust memory before the first game starts.
+# ML_NATIVE_THREADS remains available as an explicit escape hatch for profiling.
+_native_threads = os.environ.get("ML_NATIVE_THREADS", "1")
+for _thread_var in (
+        "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+    os.environ[_thread_var] = _native_threads
 
 import numpy as np
 
@@ -39,6 +50,7 @@ class _SpecView:
     def __init__(self, engine: str):
         if engine == "v7":
             self.PHASE1 = _spec_v7.PHASE1_V7
+            self.ANIMAL = _spec_v7.ANIMAL_V7
             self.PHASE2 = _spec_v7.PHASE2_V7
             self.default_params = _spec_v7.default_params_v7
             self.params_to_config = _spec_v7.params_to_config_v7
@@ -59,7 +71,19 @@ class _SpecView:
             return list(self.PHASE1)
         if spec == "phase2":
             return list(self.PHASE2)
+        if spec == "animal":
+            if not hasattr(self, "ANIMAL"):
+                raise ValueError("the focused animal search is available only for --engine v7")
+            return list(self.ANIMAL)
         return [s.strip() for s in spec.split(",") if s.strip()]
+
+
+def _atomic_json(path, data):
+    """Never leave a half-written resume checkpoint after interruption."""
+    target = Path(path)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    tmp.replace(target)
 
 
 def _write_report(out, names, best_params, best_report, args, elapsed, sv):
@@ -140,12 +164,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", default="v7", choices=["v7", "legacy"],
                     help="v7 = faithful main.py fork (default); legacy = _kagri_botlib fork")
-    ap.add_argument("--knobs", default="phase1", help="phase1 | phase2 | a,b,c")
+    ap.add_argument("--knobs", default="phase1", help="phase1 | animal | phase2 | a,b,c")
     ap.add_argument("--optimizer", default="cmaes", choices=["cmaes", "random"])
     ap.add_argument("--league", default="gate")
     ap.add_argument("--heldout", default="heldout",
                     help="league scored (not optimised) each gen to catch overfit; '' to skip")
     ap.add_argument("--games", type=int, default=10)
+    ap.add_argument("--screen-games", type=int, default=0,
+                    help="cheap first-stage games per screen opponent; 0 disables successive halving")
+    ap.add_argument("--screen-league", default="quick")
+    ap.add_argument("--screen-top-fraction", type=float, default=0.34)
     ap.add_argument("--generations", type=int, default=25)
     ap.add_argument("--popsize", type=int, default=0)
     ap.add_argument("--sigma0", type=float, default=0.15)
@@ -156,7 +184,8 @@ def main():
                          "(run `ml.evaluate --engine v7 --default --league <L>` to get v7's)")
     ap.add_argument("--rotate-seed", action="store_true",
                     help="B4: use a fresh map-seed block each generation")
-    ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
+    ap.add_argument("--workers", type=int, default=min(4, max(1, (os.cpu_count() or 2) - 1)),
+                    help="processes used for official-environment games; start at 2-4 on Windows")
     ap.add_argument("--out", default="ml/artifacts/run")
     ap.add_argument("--resume", action="store_true")
     args = ap.parse_args()
@@ -183,6 +212,13 @@ def main():
     ckpts = sorted(f for f in os.listdir(args.out) if f.startswith("gen_"))
     if args.resume and ckpts:
         st = json.load(open(os.path.join(args.out, ckpts[-1])))
+        saved_names = st.get("knob_names")
+        if saved_names and saved_names != names:
+            raise SystemExit(
+                f"cannot resume {ckpts[-1]}: checkpoint has {len(saved_names)} knobs "
+                f"but this run selected {len(names)}. Use a new --out directory or "
+                "restore the original --knobs selection."
+            )
         opt.load(st["optimizer"])
         start_gen = st["generation"] + 1
         print(f"resumed from {ckpts[-1]} at generation {start_gen}")
@@ -203,9 +239,32 @@ def main():
         eseed = (args.eval_seed + gen * 101) if args.rotate_seed else args.eval_seed
         genes = opt.ask()
         pop = [sv.from_unit(g, names, base) for g in genes]
-        reports = evaluate_many(pop, opponents, args.games, eseed, args.workers,
-                                engine=args.engine, baseline_p10=args.baseline_p10)
-        fs = [-r["fitness"] for r in reports]          # optimiser MINIMISES
+        if args.screen_games > 0 and len(pop) > 1:
+            screen_opponents = _lg.expand(args.screen_league)
+            screened = evaluate_many(pop, screen_opponents, args.screen_games, eseed,
+                                     args.workers, engine=args.engine,
+                                     baseline_p10=args.baseline_p10)
+            keep = max(1, min(len(pop), int(np.ceil(
+                len(pop) * max(0.0, min(1.0, args.screen_top_fraction))))))
+            promoted = sorted(range(len(pop)),
+                              key=lambda i: screened[i]["fitness"], reverse=True)[:keep]
+            full = evaluate_many([pop[i] for i in promoted], opponents, args.games,
+                                 eseed, args.workers, engine=args.engine,
+                                 baseline_p10=args.baseline_p10)
+            reports = list(screened)
+            for index, report in zip(promoted, full):
+                reports[index] = report
+            promoted_set = set(promoted)
+            worst_full_loss = max(-report["fitness"] for report in full)
+            screen_rank = {index: rank for rank, index in enumerate(
+                sorted(range(len(pop)), key=lambda i: screened[i]["fitness"], reverse=True))}
+            fs = [(-reports[i]["fitness"] if i in promoted_set else
+                   worst_full_loss + 1.0 + screen_rank[i] / max(1, len(pop)))
+                  for i in range(len(pop))]
+        else:
+            reports = evaluate_many(pop, opponents, args.games, eseed, args.workers,
+                                    engine=args.engine, baseline_p10=args.baseline_p10)
+            fs = [-r["fitness"] for r in reports]
         opt.tell(genes, fs)
         gi = int(np.argmin(fs))
         gen_best = reports[gi]
@@ -226,15 +285,15 @@ def main():
                 f"{ho_fit:.5f}", f"{ho_sr:.4f}", f"{dt:.0f}"])
 
         best_params = sv.from_unit(opt.best[0], names, base)
-        json.dump({
+        _atomic_json(os.path.join(args.out, f"gen_{gen:04d}.json"), {
             "generation": gen,
             "optimizer": opt.state(),
             "gen_best_params": pop[gi],
             "gen_best_report": gen_best,
             "best_params": best_params,
             "knob_names": names,
-        }, open(os.path.join(args.out, f"gen_{gen:04d}.json"), "w"), indent=2)
-        json.dump(best_params, open(os.path.join(args.out, "best.json"), "w"), indent=2)
+        })
+        _atomic_json(os.path.join(args.out, "best.json"), best_params)
 
         ho_txt = f"  held_sr={ho_sr:.3f}" if heldout else ""
         print(f"gen {gen:3d}/{args.generations}  best_fit={-opt.best[1]:+.4f}  "
@@ -250,7 +309,7 @@ def main():
     final = evaluate(best_params, opponents, max(args.games, 16),
                      args.eval_seed + 5000, args.workers,
                      engine=args.engine, baseline_p10=args.baseline_p10)
-    json.dump(best_params, open(os.path.join(args.out, "best.json"), "w"), indent=2)
+    _atomic_json(os.path.join(args.out, "best.json"), best_params)
     _snapshot(args.out, best_params, sv)
     _write_report(args.out, names, best_params, final, args, time.time() - t_start, sv)
     print(f"\nwrote {args.out}/best.json  snapshot_agent.py  report.md  history.csv")

@@ -10,6 +10,38 @@ Everything trains offline on this machine; only a tiny config (or, later, a
 `.npz`) ships. No new runtime deps — `ml/engine.py` and the exported `main.py`
 are stdlib-only.
 
+## Continuous learning supervisor
+
+`ml.loop` joins replay acquisition, deduplicated indexing, resumable parameter
+search, promotion evaluation, and challenger export. It deliberately never
+submits to Kaggle and never overwrites the champion.
+
+Not the same thing as `tools/auto_improve.py` — that one drives `compete.py`
+locally and hands an LLM the diagnosis to hand-edit `main_auto.py`; this one
+searches an engine-config/policy space over downloaded ladder replays. Both
+are currently kept as separate mechanisms; see `tools/AUTO_IMPROVE.md`.
+
+```powershell
+# Validate configuration and commands without doing work
+python -m ml.loop --dry-run
+
+# Enable desired stages in ml/loop_config.json, then run once or continuously
+python -m ml.loop
+python -m ml.loop --daemon --interval-minutes 60
+
+# Create ml/artifacts/runner/STOP for a graceful stop
+# Archive a reviewed agent immutably
+python -m ml.champion main.py --name v10 --status champion
+
+# Refresh only the replay database
+python -m ml.replay_index
+```
+
+For unattended operation, use Windows Task Scheduler with the real Python
+executable, this repository as the working directory, one allowed instance,
+and restart-after-failure enabled. The detailed design and promotion rules are
+in `PLAN_CONTINUOUS_LEARNING_AGENT.md`.
+
 ```
 ml/
   engine_v7.py       PRIMARY: faithful parameterised fork of main.py v7 (PLAN_ML_IMPROVE A1)
