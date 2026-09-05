@@ -92,14 +92,21 @@ def make_agent(config):
         q = cfg["quadrant_target"]
         return q(day) if callable(q) else q
 
-    def _want_counts(me, n_slots):
-        """Target planting picks given weights + caps, filling toward capacity."""
+    def _want_counts(me, n_slots, day=0):
+        """Target planting picks given weights + caps, filling toward capacity.
+
+        ``cfg["crops"]`` may be a plain {crop: weight} dict (held constant
+        the whole game, the original behaviour) or a ``callable(day) ->
+        dict`` for a mix that shifts over the season (e.g. wheat-heavy early
+        for cash flow, strawberry-heavy once the economy is established --
+        see bot_top10clone.py)."""
         cur = Counter()
         for row in me["tiles"]:
             for t in row:
                 if isinstance(t, dict) and t.get("kind") == "PLANT":
                     cur[t["crop"]] += 1
-        weights = cfg["crops"]
+        craw = cfg["crops"]
+        weights = craw(day) if callable(craw) else craw
         if not weights:
             return []
         cap_tiles = len(_cells(me))
@@ -125,6 +132,10 @@ def make_agent(config):
         try:
             return _act(obs)
         except Exception:
+            import os
+            if os.environ.get("KAGRI_DEBUG"):
+                import traceback
+                traceback.print_exc()
             try:
                 n = len(obs["farms"][obs["player"]].get("hands", []))
             except Exception:
@@ -180,7 +191,7 @@ def make_agent(config):
             if isinstance(t, dict) and t.get("kind") == "PLANT"
             and not t.get("watered_today"))
         room = max(0, n * 18 - unwatered_now)
-        picks = _want_counts(me, min(n * 2, room)) if (
+        picks = _want_counts(me, min(n * 2, room), day) if (
             cfg["plant_fill"] and not liquidate and day < 27 and hour < 22) else []
         seed_budget = Counter({c: int(seeds.get(c, 0)) for c in CROPS})
         pick_i = [0]
@@ -476,7 +487,7 @@ def _market(obs, me, priv, cfg, hire_target, quad_target, want_counts, money,
     # seeds
     seed_buys = []
     if day < 27 and cfg["crops"]:
-        need = Counter(want_counts(me, n_units * 2))
+        need = Counter(want_counts(me, n_units * 2, day))
         for crop in sorted(need, key=lambda c: -need[c]):
             have = int(seeds.get(crop, 0))
             tgt = min(need[crop] + 4, 14)
