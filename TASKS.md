@@ -99,7 +99,8 @@ checklist + current pointer, not a re-explanation.
 - **Environment hazard found this session:** a `main.py` edit silently reverted to the last committed HEAD between an Edit call and a later test run (file mtime predated the edit, content matched HEAD exactly, no visible error) — happened twice (once on `bots/bot_top10clone.py`, once on `main.py`). Cause unknown. **Mitigation going forward: after any edit to a file about to be tested, verify with `grep`/mtime that the change actually persisted on disk *before* trusting a test result, and commit promptly rather than leaving meaningful work uncommitted.**
 - **Ladder rank:** ~5424/7533 as of the 2026-09-04 audit (`docs/PLAN_LADDER_NEXT.md`) — **re-check live**, don't trust this number past a few days.
 - **`56016363`** (v11+feedfloor, anchor, submitted 2026-09-04 16:29): **508.3** on **30 episodes** (15W-0T-15L, 50% score-rate; animal_factory 3-12/20%).
-- **`56023304`** (P4b+cropflip, submitted 2026-09-05 02:35): **541.0** on **23 episodes** (11W-0T-12L, 48% score-rate; animal_factory 3-10/23%, other 6-2/75%, wheat_flood 2-0/100%).
+- **`56023304`** (P4b+cropflip, submitted 2026-09-05 02:35): **515.6** on **25 episodes** (11W-0T-14L, 44% score-rate; animal_factory 3-11/21%, other 6-2/75%, wheat_flood 2-1/67%).
+- **`56029879`** (main_v12_flat.py, routing fix, submitted 2026-09-05 09:45): **557.1** on **23 episodes** (11W-0T-12L, 48% score-rate; animal_factory 6-11/35%, other 4-1/80%, wheat_flood 1-0/100%). **New baseline (1c resolved KEEP, see §1).**
 - **1b resolved (2026-09-05, 23+30 eps, re-read via `download_episodes.py` + `tools/ladder_analyze.py`):** `56023304` (48%) vs anchor `56016363` (50%) — **flat within noise**, not the "trending toward regress" read the 10-episode sample suggested. Per the stated decision rule (keep if flat-or-better), **`56023304` stays incumbent; no rollback.** The load-bearing fact from this read isn't the overall rate, it's that **animal_factory win-rate is ~20-23% on both submissions** — identical within noise despite the land-cap/crop-mix constant change between them. This confirms the `IMPACT_RANKED_LEADERBOARD_PLAN.md` diagnosis directly: hand-tuned-constant patches (P4b, cropflip, Lever 2's computed gate) are not moving the dominant loss cluster at all. Next submission slot goes to **1c (routing)** per both this file's queue and `PLAN_TOP10.md`'s sequencing — do not spend another slot on a constant-level tweak.
 - **Top of leaderboard:** ~3000 rating (Crop Dusta 3009.3; top-20 band 2850–3010).
 - **Deadline:** 2026-09-30 23:59. $50,000 prize.
@@ -125,18 +126,26 @@ promote/revert by **win-rate**, not coin margin.
       rollback. animal_factory win-rate ~20-23% on both — the dominant loss
       cluster is untouched by this constant-level change (see §0 note).
 - [x] **1c. Submit `main_v12_flat.py` (routing fix) — submitted 2026-09-05
-      09:45, sub `56029879`, PENDING.** Re-validated same-day against current
-      `main.py` (post Lever 2, `bb73e7b`): `tools/validate_flatten.py` →
-      0/719 action mismatches, Kaggle's `get_last_callable` resolves `agent`
-      correctly; `compete.py --games 60` → 95.0% score-rate, 56W-2T-2L, 0
-      crashes/errors, +3497 mean margin vs `main_v14` (current lineage)
-      specifically. This is the Hungarian-assignment executor whose earlier
-      ladder score (123.2) was root-caused as a packaging bug, not a real
-      regression (`023aadb`) — last unresolved item from
-      `docs/TOP10_TEARDOWN.md` (movement 60% ours vs 47–48% top-10). **Next:
-      wait 20+ episodes**, `download_episodes.py` + `tools/ladder_analyze.py
-      56029879`, compare score-rate + animal_factory row vs `56023304`
-      (527.3) per the 1b decision rule (keep if flat-or-better).
+      09:45, sub `56029879`. RESOLVED 2026-09-05: KEEP/PROMOTE.** Re-validated
+      same-day against current `main.py` (post Lever 2, `bb73e7b`):
+      `tools/validate_flatten.py` → 0/719 action mismatches, Kaggle's
+      `get_last_callable` resolves `agent` correctly; `compete.py --games 60`
+      → 95.0% score-rate, 56W-2T-2L, 0 crashes/errors, +3497 mean margin vs
+      `main_v14` (current lineage) specifically. This is the Hungarian-assignment
+      executor whose earlier ladder score (123.2) was root-caused as a
+      packaging bug, not a real regression (`023aadb`) — last unresolved item
+      from `docs/TOP10_TEARDOWN.md` (movement 60% ours vs 47–48% top-10).
+      **Ladder read (23 eps `56029879` vs 25 eps `56023304`):** score-rate
+      48% vs 44%, animal_factory win-rate **35% (6W-0T-11L) vs 21%
+      (3W-0T-11L)** — the first submission to move the dominant loss cluster
+      at all — ladder 557.1 vs 515.6. Clears the 1b decision rule
+      (flat-or-better) with margin to spare: **routing fix confirmed
+      net-positive on real ladder, `56029879` is the new baseline for future
+      comparisons.** Caveat: `main_v12_flat.py` is a routing-only fork of an
+      *earlier* `main.py` state — it does NOT include Lever 2 or the E3
+      animal-reserve fix that have since landed on `main.py`. Next submission
+      slot: port the routing executor onto current `main.py` (Lever2+E3
+      included) as a single combined change, per the queue below.
 - [x] **1d. Root-cause the day-2 lead-flip / cash-crater pattern — resolved
       2026-09-05.** Built `tools/trace_cashflow.py` and traced the 8 worst
       real ladder `animal_factory` losses (both tracked subs). Identical

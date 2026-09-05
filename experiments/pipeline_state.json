@@ -1,9 +1,10 @@
 {
   "analyzed_submissions": [
     "56016363",
-    "56023304"
+    "56023304",
+    "56029879"
   ],
   "last_submit_date": "2026-09-05",
   "last_checked": "2026-09-05",
-  "notes": "56016363 vs 56023304 resolved 2026-09-05 (1b, flat/keep). 56029879 (1c routing) is the pending read, waiting on 20+ episodes."
+  "notes": "56016363 vs 56023304 resolved 2026-09-05 (1b, flat/keep). 56029879 vs 56023304 resolved 2026-09-05 (1c, KEEP/new baseline: 48% vs 44% score-rate, animal_factory 35% vs 21%). Next: port routing fix onto current main.py (Lever2+E3 included) for the next submission slot once free."
 }
