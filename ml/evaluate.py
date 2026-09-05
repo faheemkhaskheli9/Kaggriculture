@@ -355,12 +355,30 @@ def _hard_opponents(per_opponent: dict) -> list[str]:
     return [o for o in per_opponent if "animal" in o]
 
 
+# The strong lineage baselines (v4 = the matchup v6 broke; main = ourselves).
+# Neither name contains "animal", so a knob search that only optimises against
+# _hard_opponents is free to gut this matchup entirely to buy an animal-bot
+# win -- measured: an `animal`-knob continuous-loop run scored 86-100% vs every
+# animal/bot opponent while going 5-0-45 (10%, -4752 margin) vs v4, and no gate
+# check caught it. LINEAGE_FLOOR is deliberately looser than the 0.45 animal
+# floor (these are tougher, more competent opponents; the goal is "don't
+# collapse", not full parity) -- it exists to catch a crater, not to demand a
+# win.
+_LINEAGE_OPPONENTS = {"v4", "main"}
+_LINEAGE_FLOOR = 0.30
+
+
+def _lineage_opponents(per_opponent: dict) -> list[str]:
+    return [o for o in per_opponent if o in _LINEAGE_OPPONENTS]
+
+
 def fitness(report: dict) -> float:
     """Higher is better; optimisers minimise ``-fitness``.
 
     This is the promote rule (PLAN_ML_IMPROVE.md B2): any config that
       * crashes, or
       * scores < 0.45 vs any animal opponent, or
+      * scores < 0.30 vs v4 or main (no crater-for-an-animal-win trades), or
       * ends with mean terminal unsold > 3, or
       * runs slower than 4 ms/step, or
       * has p10 coins below the baseline (when one is supplied)
@@ -370,6 +388,8 @@ def fitness(report: dict) -> float:
     per = report.get("per_opponent", {})
     hard = _hard_opponents(per)
     worst_hard = min((per[o]["score_rate"] for o in hard), default=1.0)
+    lineage = _lineage_opponents(per)
+    worst_lineage = min((per[o]["score_rate"] for o in lineage), default=1.0)
     base_p10 = report.get("baseline_p10", 0.0) or 0.0
 
     # ---- disqualifiers: return a *ranked* penalty so CMA-ES still has a gradient
@@ -387,6 +407,8 @@ def fitness(report: dict) -> float:
         dq += 0.05 * min(10.0, float(report["market_order_overflow"]))
     if worst_hard < 0.45:
         dq += (0.45 - worst_hard)
+    if worst_lineage < _LINEAGE_FLOOR:
+        dq += (_LINEAGE_FLOOR - worst_lineage)
     if report["terminal_unsold"] > 3.0:
         dq += 0.02 * min(50.0, report["terminal_unsold"] - 3.0)
     if report["ms_step"] > 4.0:
@@ -415,7 +437,7 @@ def _fmt(report: dict) -> str:
         f"  err={report['errors']}  ms/step={report['ms_step']:.2f}"
     ]
     for o, d in report["per_opponent"].items():
-        tag = "  <hard" if "animal" in o else ""
+        tag = "  <hard" if "animal" in o else ("  <lineage" if o in _LINEAGE_OPPONENTS else "")
         lines.append(
             f"  {o:16} W/T/L={d['w']}/{d['t']}/{d['l']}  sr={d['score_rate']:.2f}"
             f"  coins {d['mean_coins']:.0f}/p10 {d['p10_coins']:.0f}"

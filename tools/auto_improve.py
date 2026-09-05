@@ -131,7 +131,8 @@ def is_allowed(rel_posix):
 # --------------------------------------------------------------------------- #
 # compete.py evaluation + parsing
 # --------------------------------------------------------------------------- #
-SUMMARY_RE = re.compile(r"W/T/L\s*=\s*(\d+)/(\d+)/(\d+)\s+score=([\d.]+)%\s+errors=(\d+)")
+SUMMARY_RE = re.compile(
+    r"W/T/L\s*=\s*(\d+)/(\d+)/(\d+)\s+score=([\d.]+)%\s+(?:crashes=(\d+)\s+)?errors=(\d+)")
 COINS_RE = re.compile(r"our coins\s+mean/median/min\s*=\s*(-?\d+)\s*/\s*(-?\d+)\s*/\s*(-?\d+)")
 MARGIN_RE = re.compile(r"margin\s+mean/median/min\s*=\s*([+-]?\d+)\s*/\s*([+-]?\d+)\s*/\s*([+-]?\d+)")
 PEROPP_RE = re.compile(r"^\s*vs\s+(\S+)\s+(\d+)/(\d+)/(\d+)\s+margin mean=([+-]?\d+)", re.M)
@@ -151,10 +152,11 @@ def parse_compete(stdout: str) -> dict:
         else:
             hint = "compete.py ran but printed no 'W/T/L=' summary line (need --games > 1)."
         raise RuntimeError(f"could not parse compete.py summary\n{hint}\n" + stdout[-2000:])
-    w, t, l, score, errs = m.groups()
+    w, t, l, score, crashes, errs = m.groups()
     res = {
         "wins": int(w), "ties": int(t), "losses": int(l),
         "score": float(score) / 100.0, "errors": int(errs),
+        "crashes": int(crashes) if crashes is not None else 0,
         "per_opp": {},
     }
     c = COINS_RE.search(stdout)

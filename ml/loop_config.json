@@ -44,6 +44,7 @@
     "min_margin_delta": 0,
     "min_mean_score_rate": 0.5,
     "min_animal_score_rate": 0.5,
+    "min_lineage_score_rate": 0.3,
     "min_p10_coins": 0,
     "max_terminal_unsold": 3,
     "max_plant_deaths": 0,

@@ -117,6 +117,14 @@ def qualifies(report: dict, cfg: dict) -> tuple[bool, list[str]]:
     for opponent, metrics in report.get("per_opponent", {}).items():
         if "animal" in opponent and metrics.get("score_rate", 0) < animal_floor:
             failures.append(f"{opponent} score rate below floor")
+    # v4/main don't match "animal" by name, so without this a knob search is
+    # free to buy an animal-opponent win by gutting the lineage matchup --
+    # measured: 86-100% vs every animal/bot opponent, 10% (-4752 margin) vs v4,
+    # uncaught. Mirrors ml/evaluate.py's _LINEAGE_OPPONENTS/_LINEAGE_FLOOR.
+    lineage_floor = cfg.get("min_lineage_score_rate", 0.30)
+    for opponent, metrics in report.get("per_opponent", {}).items():
+        if opponent in ("v4", "main") and metrics.get("score_rate", 0) < lineage_floor:
+            failures.append(f"{opponent} score rate below floor")
     return not failures, failures
 
 
