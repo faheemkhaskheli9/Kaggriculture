@@ -18,10 +18,11 @@
 > like any other candidate.
 
 > **Current operating plan (2026-09-05):** use
-> `docs/IMPACT_RANKED_LEADERBOARD_PLAN.md`. It supersedes the ordering in this
-> file where they conflict. The next implementation task is E0: paired A/B
-> evaluation; no strategy candidate should be promoted from unpaired coin
-> results.
+> `docs/IMPACT_RANKED_LEADERBOARD_PLAN.md`, with the shared-agent execution
+> rules in `docs/PLAN_TO_3000.md`. E0 paired A/B evaluation is complete. The
+> next unclaimed strategy task is `AM-FEED-1`; the separately validated routing
+> refresh remains queued for a user-authorized submission window. No candidate
+> is promoted from unpaired coin results.
 
 > **Outcome target:** current live score 553.2 → **1553.2+**. The operating
 > plan's §8 replacement-policy program is the primary path. Incremental items
@@ -81,10 +82,101 @@ sitting.
 Detail/rationale for each item lives in the linked doc; this file is the
 checklist + current pointer, not a re-explanation.
 
+Public-agent strategy ideas are preserved in
+`PUBLIC_AGENT_STRATEGY_CATALOG.md`. It is an ideas-only index: never restore or
+copy public-agent code, payloads, constants, or route tapes. New public ideas
+must be paraphrased into that catalog and independently implemented through the
+normal experiment gates.
+
 ---
 
 ## 0. Snapshot (update the date whenever you touch this file)
 
+### Shared work board (Claude + Codex)
+
+Claim a row before editing by adding owner and UTC timestamp. One owner and one
+mechanism per row; list owned files before making changes. Re-read this table
+before editing shared files. Kaggle submission always requires explicit user
+approval.
+
+| ID | Priority / isolated mechanism | Owner | Status | Owned files | Handoff / exit gate |
+|---|---|---|---|---|---|
+| AM-FEED-1 | Strict feed-first targeting within the existing ANTI_META crew | unclaimed | ready | TBD on claim | Frozen 40-pair adversarial-v1 A/B; reduce feed failures/escapes, no external regression |
+| EVAL-FACTORY-1 | Unsaturated factory validation slice from our replays and engine rules | claude 2026-09-05T14:06Z | blocked | `bots/bot_factory_v3.py` (new), `bots/_kagri_botlib.py` | `_kagri_botlib` engine ceiling < main.py — a scripted factory bot can't be unsaturated; needs a replay-driven agent (POLICY-RARE-1) or ladder-gating. See snapshot note. |
+| R3-HERD-1 | Explain/test staged herd-cap signal alone | claude 2026-09-05T18:36Z | done (not promoted) | `experiments/candidate_top10rules.py` | **Closed 2026-09-05: explained, not promoted.** Root cause found+fixed (crew-size formula used reservation target not actual herd, `ENABLE_R3_CREW_FIX`, commit `a729abf`). Isolated crew-fix-alone test (R3 herd-cap OFF) vs `main.py`: score delta -2.5% CI[-6.2%,+1.2%], margin -2819, wheatflood/top10clone regress — the fix only pays off paired with R3's herd-cap bump, not standalone. Do not port the fix onto `main.py` alone; take it bundled with R3 if R3 itself ever clears Gate B. See `experiments/LEDGER.md`. |
+| POLICY-RARE-1 | Explicit BUY_LAND/BUY_ANIMAL timing/value controller | unclaimed | ready | TBD on claim | Episode-held-out benchmark plus paired validation; safety layer unchanged |
+| AM-HERDSCALE-1 | Cap the per-head escalation in the BUY_ANIMAL affordability gate | claude 2026-09-05T14:06Z | ready-for-ladder | `scratchpad/cand_fscale.py` (not on main.py) | Local no-op (0 regressions, cash floor not reproducible locally); needs a ladder slot. User approval required. |
+| ROUTE-SUBMIT-1 | Promote validated routing refresh | user | waiting-approval | `main_v12_flat.py`, `main.py` | User approval, submission window clear, final flatten/package validation |
+| AM-HERDRAMP-1 | Cap early herd acquisition rate (day-0 binge) | claude 2026-09-05T14:06Z | rejected | `main.py` (reverted clean) | Gate B failed x2 — see snapshot note below |
+
+Statuses: `ready`, `claimed`, `running`, `done`, `rejected`, or `blocked`.
+
+- **AM-HERDSCALE-1 ready-for-ladder (2026-09-05, claude):** F-SCALE — from the
+  EVAL-FACTORY-1 mine (our herd ends the season at ~8 vs the winning opponent's
+  14-16; our own `animal_targets` cap is 13 but unreached). Root cause: the
+  `BUY_ANIMAL` affordability gate's per-head term `150 * placed_total` escalates
+  faster than our real-ladder day-10-15 cash recovers — at herd 8 it demands
+  `money >= reserve + 1600` while cash floors at $600-1500 there, freezing the
+  herd. Change (`ENABLE_FSCALE_HERD`, `FSCALE_HEAD_CAP=4`): cap that escalation
+  at 4 heads — E3's day-0-binge restraint unchanged, then continued growth
+  toward target stops being penalised. Opposite direction to the rejected E4
+  (E4 throttled the herd and starved income; this scales the income line up).
+  **Local A/B is a pure no-op: 100 pairs full pool 0/98/2 margin ~$0; 40 pairs
+  vs the cash-pressuring `bot_factory_v3` 0/40/0 margin +$193; day10 cash delta
+  +0 everywhere.** No local opponent pushes us into the sub-$1500 cash floor the
+  gate needs to bind, so the relaxation never fires locally — provably harmless,
+  benefit only realizes under real-ladder pressure. Preserved at
+  `scratchpad/cand_fscale.py` (NOT on `main.py` — routing re-flatten 1f owns the
+  next main.py→ladder path). A legitimate ladder-only candidate for the slot
+  after routing; needs user approval.
+- **EVAL-FACTORY-1 blocked (2026-09-05, claude):** mined the real
+  animal_factory opponent policy from the 12 losses on `56029879`
+  (`scratchpad/mine_factory_opp.py`). Median winning-opp trajectory: **herd 4
+  by day 1** (buys 4 animals turn 0-1 as cash goes to ~$20-95), 8 by day 10,
+  **breakout day 10-12** ($1.6k -> $9k), herd 14 by day 15 / 16 by day 20,
+  3-4 quadrants, plants only 15-30 early (vs our 40+), **movement 41-52% vs
+  our 63%**, weeds left to pile up late. Our agent in those same games ran
+  herd 8 and lost by ~20k — **half the opponent's herd** is the visible gap.
+  Built `bots/bot_factory_v3.py` from this (melon-heavy early crop, herd ~14
+  at 2/turn from day 1, near-zero buffer, `animal_reserve_leave_plantable`
+  added to `_kagri_botlib` as an opt-in cfg key — byte-identical for every
+  existing bot, default `None`). Raw $0-buffer shape bankrupts the botlib
+  into a feed-miss escape spiral; even the tuned solvent envelope (opp
+  reaches $24-39k, up from v2's ~19k) still loses to `main.py` **24-0-0 /
+  100%**. **Same ceiling `bot_top10clone` hit** — `_kagri_botlib`'s
+  movement/feed-logistics/market-timing is simply weaker than `main.py`, so
+  no config tuning of it yields an unsaturated factory opponent. `bot_factory_v3`
+  is kept as a stronger-than-v2 pool archetype regardless. The only real
+  paths to an unsaturated factory opponent: a replay-driven agent that
+  replays a mined winning action sequence (`POLICY-RARE-1` / Workstream A),
+  or accept local eval is blind for economy changes (repo's standing
+  conclusion) and gate the factory cluster on the ladder directly, the way
+  the routing fix was.
+- **AM-HERDRAMP-1 rejected (2026-09-05, claude):** diagnosed the animal_factory
+  loss cluster on the routing baseline `56029879` (25 eps, vs-factory 6W-12L /
+  33%) with `tools/trace_cashflow.py`. **All 12 factory losses share an
+  identical day-0 signature:** ~$900-1070 seed + exactly $1600 on 4 `BUY_ANIMAL`
+  on turn 0 -> cash $3000 -> $300-480 by day 1; hiring then held at the
+  by-design `day<3: desired=6` cap while cash never clears ~$1500 through day
+  15, and the opponent breaks out at day 10-15. Deficit buckets: ~4 close
+  (<25k), ~4 recoverable (25-46k), ~4 blowout (>46k, opp was a monopolist).
+  Tested one isolated mechanism: `ENABLE_E4_HERD_RAMP` — cap placed+pending
+  animals at `k*(day+1)` for the opening days so the herd fills ~1/day like
+  top-10 replays (Workstream A mining) instead of bingeing day 0. **Gate B
+  failed twice:** (a) 1/day, 60 paired full pool seed 260906 — score delta
+  **-9.2%**, CI [-19.2%,+0.8%], I/S/R 4/46/10, margin -$10.4k, productive
+  actions -187; (b) milder 2/day-until-day4, 80 paired — every non-lineage
+  opponent +0.0% score delta with broadly negative margin, two lineage
+  regressions. Throttling the herd starves milk/wool/egg income; locally,
+  filling fast beats the ladder-pathological binge — the same "local can't
+  gate an economy change" wall the repo keeps hitting. `main.py` reverted
+  clean (no toggle left in code). E2's own candidate list is now exhausted:
+  #1 TXCASH shipped/ON, #2 HERDBATCH rejected, #3 ANTI_META self-play-only,
+  and this. **The factory cluster has resisted P4b, cropflip, Lever 2, E3,
+  HERDBATCH, ANTI_META, E4 — routing (`56029879`, 21%->35%) is the only thing
+  that moved it.** Next real lever is `PLAN_TOP10.md` Lever 1 (a genuine
+  2850-caliber `bot_top10clone` so Gate B stops being blind) or the §8
+  policy-replacement challenger — not another one-mechanism economy tweak.
 - **E2 anti-meta service-crew iteration rejected (2026-09-05):** tested one
   isolated maintenance change: at the full 13-head herd, reserve four animal
   hands instead of three (`ceil(herd/4)`, still leaving six crop units). On the
