@@ -24,6 +24,7 @@ Examples
     python compete.py --games 300 --workers 6   # shard 300 independent games across 6 procs
 """
 import argparse
+import csv
 import datetime as dt
 import gzip
 import json
@@ -48,6 +49,10 @@ DEFAULT_POOL = [
     "bots/bot_melonmono.py",
     "bots/bot_premium.py",
     "bots/bot_wheatflood.py",
+    "bots/bot_diversified.py",
+    "bots/bot_hoarder.py",
+    "bots/bot_tomatorush.py",
+    "bots/bot_woolfarm.py",
     "contenders/c_animalfactory.py",
     "contenders/c_premium.py",
     "contenders/c_v5clone.py",
@@ -72,6 +77,91 @@ COMPETITION_CONFIG = {
     "turnsPerDay": 24,
     "maxMarketOrdersPerTurn": 10,
 }
+MOVEMENT_OPS = {"NORTH", "SOUTH", "EAST", "WEST"}
+PRODUCTIVE_OPS = {
+    "PLANT", "WATER", "HARVEST", "FERTILIZE", "DIG", "BUILD_COOP",
+    "BUILD_PASTURE", "FEED", "COLLECT_FERTILIZER", "CARE", "PICKUP",
+    "PLACE", "DROP",
+}
+CHECKPOINT_DAYS = (5, 10, 15, 20, 25, 29)
+
+
+def replay_diagnostics(replay, seat):
+    """Extract compact causal metrics; never retain the full replay in a row."""
+    actions = {}
+    market_orders = {}
+    movement = productive = nonpass = 0
+    plant_to_weed = animal_escapes = 0
+    checkpoints = {}
+    previous_tiles = None
+
+    for step in replay.get("steps", []):
+        if seat >= len(step):
+            continue
+        state = step[seat]
+        action = state.get("action") or {}
+        unit_actions = []
+        farmer = action.get("farmer")
+        if isinstance(farmer, list) and farmer:
+            unit_actions.append(farmer)
+        unit_actions.extend(a for a in (action.get("hands") or [])
+                            if isinstance(a, list) and a)
+        for unit_action in unit_actions:
+            op = unit_action[0]
+            actions[op] = actions.get(op, 0) + 1
+            if op != "PASS":
+                nonpass += 1
+            if op in MOVEMENT_OPS:
+                movement += 1
+            if op in PRODUCTIVE_OPS:
+                productive += 1
+        for order in action.get("market") or []:
+            if isinstance(order, list) and order:
+                market_orders[order[0]] = market_orders.get(order[0], 0) + 1
+
+        obs = state.get("observation") or {}
+        farms = obs.get("farms") or []
+        if seat >= len(farms):
+            continue
+        farm = farms[seat]
+        tiles = farm.get("tiles") or []
+        if previous_tiles is not None:
+            for y, row in enumerate(tiles):
+                for x, tile in enumerate(row):
+                    if y >= len(previous_tiles) or x >= len(previous_tiles[y]):
+                        continue
+                    old = previous_tiles[y][x]
+                    if isinstance(old, dict) and isinstance(tile, dict):
+                        if old.get("kind") == "PLANT" and tile.get("kind") == "WEED":
+                            plant_to_weed += 1
+                        if old.get("animal") and not tile.get("animal"):
+                            animal_escapes += 1
+        previous_tiles = tiles
+
+        day = obs.get("day")
+        if day in CHECKPOINT_DAYS and day not in checkpoints:
+            plants = weeds = animals = 0
+            for row in tiles:
+                for tile in row:
+                    if isinstance(tile, dict):
+                        plants += tile.get("kind") == "PLANT"
+                        weeds += tile.get("kind") == "WEED"
+                        animals += bool(tile.get("animal"))
+            private = obs.get("private") or {}
+            shed = private.get("shed") or {}
+            checkpoints[str(day)] = {
+                "money": farm.get("money", 0), "plants": plants,
+                "animals": animals, "weeds": weeds,
+                "quadrants": len(farm.get("unlocked_quadrants") or []),
+                "shed_items": sum(v for v in shed.values() if isinstance(v, (int, float))),
+            }
+    return {
+        "movement_pct": movement / nonpass if nonpass else 0.0,
+        "movement_actions": movement, "productive_actions": productive,
+        "nonpass_actions": nonpass, "plant_to_weed": plant_to_weed,
+        "animal_escapes": animal_escapes, "actions": actions,
+        "market_orders": market_orders, "checkpoints": checkpoints,
+    }
 
 
 def parse_weights(specs, pool):
@@ -109,6 +199,23 @@ def resolve_pool(names):
     return resolved
 
 
+def load_league_manifest(path_spec):
+    """Load a frozen opponent list and weights from a versioned JSON manifest."""
+    path = (ROOT / path_spec).resolve()
+    if not path.exists():
+        sys.exit(f"league manifest not found: {path_spec}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    entries = data.get("opponents") or []
+    if not entries:
+        sys.exit(f"league manifest contains no opponents: {path_spec}")
+    names = [entry["path"] for entry in entries]
+    pool = resolve_pool(names)
+    weights = [float(entry.get("weight", 1.0)) for entry in entries]
+    if any(weight <= 0 for weight in weights):
+        sys.exit("league weights must all be positive")
+    return data, pool, weights
+
+
 def money_from_final(final):
     out = []
     for i, state in enumerate(final):
@@ -133,6 +240,7 @@ def play_match(agent_path, opponent, seed, our_seat, save_dir=None, game_number=
         env.run(line)
         elapsed = time.time() - t0
 
+        replay = env.toJSON()
         final = env.steps[-1]
         statuses = [str(s.status) for s in final]
         money = money_from_final(final)
@@ -153,6 +261,7 @@ def play_match(agent_path, opponent, seed, our_seat, save_dir=None, game_number=
             "statuses": statuses,
             "errored": errored,
             "seconds": elapsed,
+            "diagnostics": replay_diagnostics(replay, our_seat),
         }
         if save_dir is not None:
             save_dir.mkdir(parents=True, exist_ok=True)
@@ -161,7 +270,7 @@ def play_match(agent_path, opponent, seed, our_seat, save_dir=None, game_number=
             replay_path = save_dir / f"{tag}.replay.json.gz"
             logs_path = save_dir / f"{tag}.logs.json"
             with gzip.open(replay_path, "wt", encoding="utf-8") as handle:
-                json.dump(env.toJSON(), handle, separators=(",", ":"))
+                json.dump(replay, handle, separators=(",", ":"))
             with logs_path.open("w", encoding="utf-8") as handle:
                 json.dump(getattr(env, "logs", None) or [], handle,
                           separators=(",", ":"))
@@ -244,13 +353,120 @@ def print_summary(rows):
         print(f"  vs {opp:<14} {w}/{t}/{l}  margin mean={margin}{crash_flag}")
 
 
+def score_value(row):
+    """Leaderboard value of one result; crashes are excluded by callers."""
+    return 1.0 if row["result"] == "WIN" else (0.5 if row["result"] == "TIE" else 0.0)
+
+
+def percentile(values, q):
+    """Linear-interpolated percentile without a third-party dependency."""
+    ordered = sorted(values)
+    pos = (len(ordered) - 1) * q
+    lo = int(pos)
+    hi = min(lo + 1, len(ordered) - 1)
+    frac = pos - lo
+    return ordered[lo] * (1 - frac) + ordered[hi] * frac
+
+
+def paired_summary(candidate_rows, baseline_rows, bootstrap_samples=5000):
+    """Return paired candidate-minus-baseline statistics for matching tuples."""
+    pairs = []
+    for candidate, baseline in zip(candidate_rows, baseline_rows):
+        if any(candidate[k] != baseline[k] for k in ("opponent", "seed", "our_seat")):
+            raise ValueError("candidate/baseline rows are not aligned")
+        if candidate["result"] == "CRASH" or baseline["result"] == "CRASH":
+            continue
+        pairs.append({
+            "opponent": candidate["opponent"], "seed": candidate["seed"],
+            "our_seat": candidate["our_seat"],
+            "candidate_result": candidate["result"],
+            "baseline_result": baseline["result"],
+            "score_delta": score_value(candidate) - score_value(baseline),
+            "margin_delta": candidate["margin"] - baseline["margin"],
+            "candidate_money": candidate["our_money"],
+            "baseline_money": baseline["our_money"],
+            "movement_pct_delta": (candidate["diagnostics"]["movement_pct"] -
+                                   baseline["diagnostics"]["movement_pct"]),
+            "productive_actions_delta": (candidate["diagnostics"]["productive_actions"] -
+                                         baseline["diagnostics"]["productive_actions"]),
+            "plant_to_weed_delta": (candidate["diagnostics"]["plant_to_weed"] -
+                                    baseline["diagnostics"]["plant_to_weed"]),
+            "animal_escapes_delta": (candidate["diagnostics"]["animal_escapes"] -
+                                     baseline["diagnostics"]["animal_escapes"]),
+            "day10_cash_delta": (
+                candidate["diagnostics"]["checkpoints"].get("10", {}).get("money", 0) -
+                baseline["diagnostics"]["checkpoints"].get("10", {}).get("money", 0)),
+        })
+    if not pairs:
+        return {"pairs": [], "count": 0}
+    deltas = [p["score_delta"] for p in pairs]
+    rng = random.Random(20260905)
+    boot = [statistics.fmean(rng.choice(deltas) for _ in deltas)
+            for _ in range(bootstrap_samples)]
+    grouped = {}
+    for pair in pairs:
+        grouped.setdefault(pair["opponent"], []).append(pair)
+    by_opponent = {}
+    for opponent, group in sorted(grouped.items()):
+        by_opponent[opponent] = {
+            "count": len(group),
+            "score_delta": statistics.fmean(p["score_delta"] for p in group),
+            "margin_delta": statistics.fmean(p["margin_delta"] for p in group),
+            "improved": sum(p["score_delta"] > 0 for p in group),
+            "same": sum(p["score_delta"] == 0 for p in group),
+            "regressed": sum(p["score_delta"] < 0 for p in group),
+        }
+    return {
+        "count": len(pairs), "score_delta": statistics.fmean(deltas),
+        "ci90_low": percentile(boot, 0.05), "ci90_high": percentile(boot, 0.95),
+        "margin_delta_mean": statistics.fmean(p["margin_delta"] for p in pairs),
+        "movement_pct_delta": statistics.fmean(p["movement_pct_delta"] for p in pairs),
+        "productive_actions_delta": statistics.fmean(
+            p["productive_actions_delta"] for p in pairs),
+        "day10_cash_delta": statistics.fmean(p["day10_cash_delta"] for p in pairs),
+        "plant_to_weed_delta": statistics.fmean(p["plant_to_weed_delta"] for p in pairs),
+        "animal_escapes_delta": statistics.fmean(p["animal_escapes_delta"] for p in pairs),
+        "improved": sum(d > 0 for d in deltas), "same": sum(d == 0 for d in deltas),
+        "regressed": sum(d < 0 for d in deltas), "by_opponent": by_opponent,
+        "pairs": pairs,
+    }
+
+
+def print_paired_summary(summary):
+    print("=" * 100)
+    print("PAIRED CANDIDATE - BASELINE")
+    if not summary["count"]:
+        print("no valid pairs")
+        return
+    print(f"pairs={summary['count']}  score delta={summary['score_delta']:+.1%}  "
+          f"90% bootstrap CI=[{summary['ci90_low']:+.1%}, {summary['ci90_high']:+.1%}]")
+    print(f"improved/same/regressed={summary['improved']}/{summary['same']}/"
+          f"{summary['regressed']}  margin delta mean={summary['margin_delta_mean']:+.0f}")
+    print(f"movement={summary['movement_pct_delta']:+.1%}  "
+          f"productive actions={summary['productive_actions_delta']:+.1f}  "
+          f"day10 cash={summary['day10_cash_delta']:+.0f}  "
+          f"plant->weed={summary['plant_to_weed_delta']:+.1f}  "
+          f"escapes={summary['animal_escapes_delta']:+.1f}")
+    for opponent, stats in summary["by_opponent"].items():
+        print(f"  vs {opponent:<22} n={stats['count']:<3} "
+              f"score delta={stats['score_delta']:+.1%} "
+              f"I/S/R={stats['improved']}/{stats['same']}/{stats['regressed']} "
+              f"margin delta={stats['margin_delta']:+.0f}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--agent", default="main.py", help="our entry (default main.py)")
+    ap.add_argument("--baseline",
+                    help="enable paired A/B mode using this incumbent; both agents "
+                         "play identical opponent/seed/seat tuples")
     ap.add_argument("--opponent", help="force a specific opponent (skip random pick)")
     ap.add_argument("--pool", nargs="+", default=DEFAULT_POOL,
                     help="opponent pool to draw from")
+    ap.add_argument("--league",
+                    help="frozen weighted league JSON; replaces --pool, --weight, "
+                         "and automatic lineage")
     ap.add_argument("--weight", nargs="+", default=[], metavar="NAME=N",
                     help="over/under-sample a pool entry, e.g. "
                          "--weight bots/bot_animalfactory_v2.py=4 (repeatable; "
@@ -287,17 +503,28 @@ def main():
     agent_path = str((ROOT / args.agent).resolve())
     if not Path(agent_path).exists():
         sys.exit(f"agent not found: {args.agent}")
+    baseline_path = str((ROOT / args.baseline).resolve()) if args.baseline else None
+    if baseline_path and not Path(baseline_path).exists():
+        sys.exit(f"baseline not found: {args.baseline}")
 
     if args.seed is not None and not (SEED_LO <= args.seed <= SEED_HI):
         sys.exit(f"--seed must be a 9-digit integer in [{SEED_LO}, {SEED_HI}]")
     if args.games < 1:
         sys.exit("--games must be >= 1")
 
-    pool = list(args.pool) + ([] if args.exclude_lineage else LINEAGE)
-    pool = resolve_pool(pool)
+    league_data = None
+    if args.league:
+        if args.opponent or args.weight:
+            sys.exit("--league cannot be combined with --opponent or --weight")
+        league_data, pool, weights = load_league_manifest(args.league)
+    else:
+        pool = list(args.pool) + ([] if args.exclude_lineage else LINEAGE)
+        pool = resolve_pool(pool)
+        weights = None
     forced_opp = resolve_pool([args.opponent])[0] if args.opponent else None
-    weight_overrides = parse_weights(args.weight, pool)
-    weights = [weight_overrides.get(p, 1.0) for p in pool] if weight_overrides else None
+    weight_overrides = parse_weights(args.weight, pool) if not args.league else {}
+    if weight_overrides:
+        weights = [weight_overrides.get(p, 1.0) for p in pool]
 
     rng = random.Random(args.pick_seed)
     run_dir = None
@@ -312,6 +539,10 @@ def main():
         return f"{name}*{w:g}" if w else name
 
     print(f"agent   : {args.agent}")
+    if args.baseline:
+        print(f"baseline: {args.baseline}  (paired A/B mode; {args.games * 2} total games)")
+    if league_data:
+        print(f"league  : {args.league} ({league_data.get('name', 'unnamed')})")
     print(f"pool    : {', '.join(pool_label(p) for p in pool)}")
     print(f"config  : episodeSteps={COMPETITION_CONFIG['episodeSteps']} "
           f"startingMoney={COMPETITION_CONFIG['startingMoney']} "
@@ -332,14 +563,23 @@ def main():
             opponent = rng.choice(pool)
         seed = args.seed if args.seed is not None else rng.randint(SEED_LO, SEED_HI)
         our_seat = rng.randint(0, 1)
+        candidate_dir = run_dir / "candidate" if run_dir and baseline_path else run_dir
         payloads.append(dict(agent_path=agent_path, opponent=opponent, seed=seed,
-                             our_seat=our_seat, save_dir=run_dir, game_number=i,
+                             our_seat=our_seat, save_dir=candidate_dir, game_number=i,
                              debug=args.debug))
+
+    baseline_payloads = []
+    if baseline_path:
+        baseline_dir = run_dir / "baseline" if run_dir else None
+        baseline_payloads = [dict(payload, agent_path=baseline_path,
+                                  save_dir=baseline_dir)
+                             for payload in payloads]
 
     # HEARTBEAT_EVERY games, print a running score so a long unattended
     # --games 120+ run is not silent for minutes at a time.
     HEARTBEAT_EVERY = 20
     rows = []
+    baseline_rows = []
 
     def maybe_heartbeat(i):
         if args.games >= HEARTBEAT_EVERY and i % HEARTBEAT_EVERY == 0 and i < args.games:
@@ -355,6 +595,11 @@ def main():
                 row = play_match(**payload)
                 rows.append(row)
                 print_row(i, row)
+                if baseline_path:
+                    baseline_row = play_match(**baseline_payloads[i - 1])
+                    baseline_rows.append(baseline_row)
+                    print("       baseline:", end=" ")
+                    print_row(i, baseline_row)
                 maybe_heartbeat(i)
         else:
             # ProcessPoolExecutor.map yields results in submission order (it
@@ -363,10 +608,22 @@ def main():
             # path.
             with ProcessPoolExecutor(max_workers=args.workers) as ex:
                 try:
-                    for i, row in enumerate(ex.map(_play_match_worker, payloads), start=1):
-                        rows.append(row)
-                        print_row(i, row)
-                        maybe_heartbeat(i)
+                    if baseline_path:
+                        combined = payloads + baseline_payloads
+                        completed = list(ex.map(_play_match_worker, combined))
+                        rows = completed[:len(payloads)]
+                        baseline_rows = completed[len(payloads):]
+                        for i, (row, baseline_row) in enumerate(
+                                zip(rows, baseline_rows), start=1):
+                            print_row(i, row)
+                            print("       baseline:", end=" ")
+                            print_row(i, baseline_row)
+                            maybe_heartbeat(i)
+                    else:
+                        for i, row in enumerate(ex.map(_play_match_worker, payloads), start=1):
+                            rows.append(row)
+                            print_row(i, row)
+                            maybe_heartbeat(i)
                 except KeyboardInterrupt:
                     # Don't let the executor's default __exit__ block waiting on
                     # in-flight workers (or raise its own teardown error, which
@@ -386,20 +643,37 @@ def main():
         # dies late loses every already-played game's summary and manifest.
         if rows:
             print_summary(rows)
+            pair_report = None
+            if baseline_path and len(baseline_rows) == len(rows):
+                pair_report = paired_summary(rows, baseline_rows)
+                print_paired_summary(pair_report)
             if run_dir is not None:
                 manifest = {
                     "agent": args.agent,
+                    "baseline": args.baseline,
                     "created_at": dt.datetime.now().astimezone().isoformat(),
                     "configuration": COMPETITION_CONFIG,
+                    "league": args.league,
+                    "league_definition": league_data,
                     "pick_seed": args.pick_seed,
                     "games_requested": args.games,
                     "games_completed": len(rows),
                     "interrupted": interrupted,
                     "games": rows,
                 }
+                if baseline_path:
+                    manifest["baseline_games"] = baseline_rows
+                    manifest["paired"] = pair_report
                 manifest_path = run_dir / "manifest.json"
                 manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
                 print(f"manifest  -> {manifest_path}")
+                if pair_report:
+                    csv_path = run_dir / "paired.csv"
+                    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+                        writer = csv.DictWriter(handle, fieldnames=list(pair_report["pairs"][0]))
+                        writer.writeheader()
+                        writer.writerows(pair_report["pairs"])
+                    print(f"paired CSV -> {csv_path}")
     if interrupted:
         # A caller (e.g. tools/auto_improve.py) must be able to tell "ran to
         # completion" (exit 0, parseable summary) apart from "was cut off"

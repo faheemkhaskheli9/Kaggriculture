@@ -1,0 +1,32 @@
+{
+  "name": "adversarial-v1-2026-09-05",
+  "purpose": "Frozen promotion league for the +1000-score challenger program",
+  "seed_policy": "Use --pick-seed for train and held-out validation blocks",
+  "opponents": [
+    {
+      "path": "bots/bot_animalfactory_v2.py",
+      "weight": 40,
+      "archetype": "animal_factory"
+    },
+    {
+      "path": "bots/bot_top10clone.py",
+      "weight": 25,
+      "archetype": "top_replay_proxy"
+    },
+    {
+      "path": "bots/bot_premium.py",
+      "weight": 15,
+      "archetype": "premium_crop"
+    },
+    {
+      "path": "bots/bot_wheatflood.py",
+      "weight": 10,
+      "archetype": "volume_crop"
+    },
+    {
+      "path": "main.py",
+      "weight": 10,
+      "archetype": "incumbent"
+    }
+  ]
+}

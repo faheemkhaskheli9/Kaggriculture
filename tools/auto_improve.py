@@ -972,15 +972,19 @@ def main():
                          baseline=base)
             save_state(run_dir, state)
 
-            # optional hill-climb reset: if we've drifted well below best, restore it
-            # (compare overall score like-for-like -- best_score[0] is the worst-opponent
-            # figure now, not the overall score; use best_metrics for that)
-            if best_py.exists() and best_metrics is not None:
-                cur_from_best = sh(["git", "diff", "--no-index", "--quiet", "--",
-                                    str(best_py), str(auto)]).returncode
-                if cur_from_best and (best_metrics["score"] - cand["score"]) > args.regress_tol:
-                    shutil.copy2(best_py, auto)
-                    print("  drifted below best -- restored best.py as the base for next fix")
+            # NOTE: a "hill-climb reset" used to live here -- if this iteration's
+            # PRE-FIX `cand` scored more than --regress-tol below best_metrics, it
+            # copied best.py back over main_auto.py, discarding whatever the driver
+            # had just applied a few lines above. Removed: `cand` and `best_metrics`
+            # are scores from DIFFERENT search-phase seeds (the seed rotates every
+            # iteration on purpose, see --search-seed-stride), so the comparison was
+            # noise, not regression -- confirmed from tools/auto_improve_runs/
+            # 20260905-081459/LEDGER.md, where the same Q4 land-gate fix was
+            # diagnosed and reapplied 4 times (iters 3/5/6/7) because this block
+            # silently reverted it each round, freezing last_best_iter at 3 through
+            # iter 8. best.py is already insulated from a drifting main_auto.py by
+            # the best-tracking + --patience stop condition above, so this block
+            # added no safety it didn't already have.
 
         # ---- wrap up ---------------------------------------------------- #
         if best_py.exists():

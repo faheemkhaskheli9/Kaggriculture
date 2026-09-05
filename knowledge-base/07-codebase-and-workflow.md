@@ -7,7 +7,7 @@
 | `main.py` | **The submission** (promoted agent). Committed @ `45ce7bd` = **v10** (v7 zoned core + P1 day-scaled reserve + F1 herd-match + P2 fertilizer staple + P4 coverage cap). Working tree may carry a WIP `v11` bundle. |
 | `main_herdbatch.py` / `main_ml.py` / `main_ai.py` | Candidate forks at repo root. `main_herdbatch.py` = committed v10 + a gated dawn herd-batch bootstrap. |
 | `agents/main_v1.py … main_v11.py` | The full promoted/probe lineage. Ladder reads: v1 **332.9**, v2/`main_600` **477.1**. `agents/main_v10.py` = the committed-`main.py` snapshot; it is `test.py`'s default `--incumbent`. `agents/main_p2.py` / `main_p3.py` = endgame / experimental forks. Every file here is a `compete.py` pool opponent. (v1–v2 carry the old shop-name lookup bug.) |
-| `bots/` | Hand-written opponent archetypes — `bot_animalfactory_v2` (the ladder-representative hard counter: WHEAT sold every turn as working capital → 18-head herd + free fertilizer), `bot_animalfarm`, `bot_wheatflood`, `bot_premium`, `bot_melonmono` — on `bots/_kagri_botlib.py` (`make_agent(config)`: shared zoned multi-unit engine parameterised by quadrant target, hire schedule, crop/animal mix, sell caps). |
+| `bots/` | Hand-written opponent archetypes — `bot_animalfactory_v2` (the ladder-representative hard counter: WHEAT sold every turn as working capital → 18-head herd + free fertilizer), `bot_animalfarm`, `bot_wheatflood`, `bot_premium`, `bot_melonmono`, `bot_top10clone` (real top-10 replay-derived, kept out of `DEFAULT_POOL` — use `--opponent` explicitly), and four gap-filling archetypes added 2026-09-05: `bot_diversified` (balanced 4-crop + light mixed herd, no single resource to exploit), `bot_hoarder` (passive 1-quadrant banker, high reserve + high sell floor, tests whether our early spend actually beats patience), `bot_tomatorush` (WHEAT-bootstrapped then TOMATO-ongoing at wheatflood throughput — going TOMATO-only from turn 0 bankrupts the bot, since hands reset to $0-hireable every day and TOMATO's first yield is day 8), `bot_woolfarm` (SHEEP/GOOSE herd, WHEAT-as-feed field, pressure-tests WOOL sell cadence) — all on `bots/_kagri_botlib.py` (`make_agent(config)`: shared zoned multi-unit engine parameterised by quadrant target, hire schedule, crop/animal mix, sell caps). |
 | `contenders/` | A second archetype set (`c_animalfactory`, `c_premium`, `c_v5clone`, `c_wheatflood`) on `contenders/_engine.py`. In the `compete.py` default pool. |
 | `compete.py` | **The ladder-like gate.** See below. Archives to `compete_runs/<stamp>/`. |
 | `tools/analyze_runs.py` | **The results/replay/log analysis pipeline** over `compete_runs/`. See below. |
@@ -83,9 +83,12 @@ python compete.py --pool bots/bot_wheatflood.py starter --games 10 --no-store
 python compete.py --exclude-lineage                         # archetypes only, no self-play
 ```
 
-- Default pool = `bots/` (×5, `bot_animalfactory_v2` weighted for realism) +
-  `contenders/` (×4) + every `agents/*.py` + `starter`. `--pool` overrides,
-  `--exclude-lineage` drops the `agents/*.py` self-play mirrors.
+- Default pool = `bots/` (×9: the 5 ladder-derived archetypes +
+  `bot_diversified`/`bot_hoarder`/`bot_tomatorush`/`bot_woolfarm`,
+  `bot_animalfactory_v2` weighted for realism; `bot_top10clone` deliberately
+  excluded — use `--opponent` for it) + `contenders/` (×4) + every
+  `agents/*.py` + `starter`. `--pool` overrides, `--exclude-lineage` drops the
+  `agents/*.py` self-play mirrors.
 - `--pick-seed N` makes the whole run (opponent/seat/episode-seed picks)
   reproducible — use the **same** `--pick-seed` across two `--agent` runs for a
   paired comparison.
