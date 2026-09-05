@@ -273,6 +273,27 @@ promote/revert by **win-rate**, not coin margin.
       submitted. Full numbers: `experiments/LEDGER.md`'s "HERDBATCH fold +
       re-gate" row.
 
+- [ ] **1f. Re-port routing executor onto current `main.py` (Lever2+E3+
+      STRATEGY_MODE/ANTI_META included) — re-flattened & re-validated
+      2026-09-05, READY, NOT YET SUBMITTED (today's slot already used by
+      1c/`56029879`).** Regenerated `main_v12_flat.py` via
+      `tools/flatten_v12.py` against the current `main.py` (picks up
+      everything 1c's original flatten predates: Lever2 land gate, E3 reserve
+      fix, STRATEGY_MODE selector, ANTI_META/LIVESTOCK_ENGINE toggles).
+      `tools/validate_flatten.py`: 0/719 action mismatches vs the live wrapped
+      reference. 60-game paired `compete.py --baseline main.py` bug-check:
+      0 crashes/errors, 93.3% score-rate, **every external hard-bot archetype
+      flat at +0.0% paired score delta** (animalfactory_v2, diversified,
+      hoarder, melonmono, premium, tomatorush, woolfarm, starter — all
+      same/no regression), productive actions +30.5, movement -0.4pt, margin
+      delta mean +3937. Only regressions are lineage self-play noise
+      (`main_v12`, `main_v14`, `main_p3` — expected, not an external signal).
+      Clears the same bar the original 1c submission cleared. **Next
+      submission slot** (once the one-per-day window resets): `cp
+      main_v12_flat.py main.py`, commit, submit — evicts `56023304` (515.6),
+      keeps `56029879` (564.8) as the other tracked slot for the post-episode
+      compare.
+
 After each ladder-gated read: update `experiments/LEDGER.md`'s row for that
 change (ladder score + keep/revert decision) **and** check off / re-rank this
 list accordingly.
