@@ -1,11 +1,11 @@
-"""Kaggriculture v11: v10 + 4 stacked hunks (each independently revertible).
+"""Kaggriculture v11: v10 + 3 stacked hunks (each independently revertible).
 
-  P2k -- marginal-value crop prune in choose_crops: before a crop can take a
-         plant slot, glut-discount its price by our own + the opponent's
-         standing acreage and drop it if the projected sale price no longer
-         clears seed + labour break-even. Stops spending a slot and a week of
-         watering on an already-crashed CARROT/MELON (or over-glutted) market.
-         Rollback: delete the `_crop_pays_off` guard block in choose_crops.
+  P2k -- REVERTED (again). AUTO iter 0 found this file had re-added the
+         marginal-value crop prune in choose_crops (glut-discount price by
+         acreage, drop a crop that no longer clears seed break-even) despite
+         it already being tried and reverted once on main.py: 40-game pinned
+         ablation showed 42.5% win / -$3.5k WITH it vs 57.5% / +$10k without.
+         Removed again -- see the AUTO iter 0 note inline in choose_crops.
   P3f -- cash-flow-aware working-capital reserve: keep the P1 day-scaled ramp
          as an upper bound, but relax it (never below HARD_FLOOR) once the shed
          already holds enough unsold sellable value + near-term herd income to
@@ -135,6 +135,92 @@ ANIMALS = {
     "SHEEP": (500, "PASTURE", "BUILD_PASTURE", 6, 3, "WOOL"),
     "GOOSE": (300, "COOP",    "BUILD_COOP",    4, 1, "EGG"),
 }
+
+# ---------------------------------------------------------------------------
+# Strategy toggles. This file is tools/auto_improve.py's working scratchpad
+# (each "AUTO iter N" comment is one automated diagnose-and-fix round), so
+# its hunk stack drifts more than main.py's -- these flags let a human bisect
+# it by hand between auto-loop runs, same convention as main.py's own toggle
+# block and experiments/candidate_top10rules.py's R1/R2/R3. Every flag
+# defaults to whatever this file currently does (True for an active hunk,
+# False for one that's absent/reverted); flipping one to its non-default
+# value reproduces the named prior/alternate version's exact old formula --
+# see each comment for where that formula came from. Verified: a 20-pair
+# paired self-test, all-flags-default vs a pinned pre-toggle snapshot,
+# +0.0% score delta / +$0 margin delta in every game.
+
+ENABLE_F1_HERD_MATCH = True
+# F1 (docs/PLAN_LADDER_V10.md, v10) -- see main.py's copy of this flag for the
+# full rationale. OFF restores the pre-F1 crouch (v7): COW3/GOOSE3/SHEEP0 and
+# the herd cap itself pulled down to 6.
+F1_OFF_WANT = {"COW": 3, "GOOSE": 3, "SHEEP": 0}
+F1_OFF_CAP = 6
+
+ENABLE_P2_FERTILIZER_STAPLE = True
+# P2 (docs/PLAN_LADDER_V10.md, v10). ON: sell FERTILIZER as a staple with a
+# big per-turn slice; OFF folds it back into the generic `contested`
+# MILK/WOOL-style thin-slice branch (v7). See main.py's copy of this flag.
+ENABLE_P4_COVERAGE_CAP = True
+# P4 land/labour half (docs/PLAN_LADDER_V10.md, v10). ON: cap total plants at
+# crop_units*8 in add_plant_tasks; OFF removes the cap, bounding room only by
+# open tiles and watering throughput (v7). See main.py's copy of this flag.
+ENABLE_P4C_LATE_WEED = True
+# P4 weed half, "P4c" (docs/PLAN_LADDER_V10.md, v10). ON: day>=18 weed
+# priority bumps to 2500; OFF holds it flat at 2200 all game (v7).
+ENABLE_P1W_EVENING_WATER = True
+# P1w (v11). ON: an otherwise-dry plant gets priority 3000 in the last few
+# turns of the day; OFF holds comfort water at a flat 2600 all day (v10).
+ENABLE_P3F_CASHFLOW_RESERVE = True
+# P3f (v11). ON: relax the day-scaled reserve ramp toward HARD_FLOOR once
+# near-term shed value + herd income already cover the cushion. OFF pins
+# `reserve` to the flat `base_reserve` ramp with no relax.
+ENABLE_P4R_WALKAWARE = True
+# P4r (v11). ON: out-of-zone tasks in assign's global pass cost 40/step (was
+# 25), and idle units prefer their own zone. OFF restores the flat 25/step
+# walk cost and lets idle units chase the globally-nearest pending tile.
+P4R_OFF_STEP_COST = 25
+P4R_ON_INZONE_STEP_COST = 25
+P4R_ON_OUTZONE_STEP_COST = 40
+ENABLE_FEED_EMERGENCY_FLOOR = True
+# Feed-emergency-floor fix (main.py acbcf93 -> submission 56016363, 574.6,
+# best ladder score to date; AUTO iter 1 restored it here after an earlier
+# auto-iteration silently dropped it). ON: a genuine zero-wheat feed
+# emergency is sized against a small float (30) instead of the full reserve.
+# OFF gates every feed restock -- including a zero-wheat emergency -- on the
+# normal day-scaled `reserve` (the collapsed, pre-fix behaviour AUTO iter 1
+# found and reverted).
+
+ENABLE_AUTO_RESERVE_RETUNE = True
+# AUTO iter 0. ON: the day<16 working-capital ramp is a lower, faster-capped
+# curve (min(400, 150+50*day), caps at day 5) than P1's original -- this
+# file's diagnosis found the original ramp (below) hit $1400 by day 8, above
+# the ~$1.3k this build's build-out phase actually holds, so `money -
+# reserve` went negative and silently starved the animal/feed/seed/land
+# buys days 4-16. OFF restores P1's original ramp (v10/main.py):
+# min(1400, 200 + 150*day).
+ENABLE_AUTO_SELL_CAP_RAISE = True
+# AUTO iter 1. ON: roughly doubled per-turn sell caps for premium/contested
+# produce (loss traces showed winning clones moving 2-3x our volume/turn
+# while the price still cleared `keep`). OFF restores v10/main.py's original
+# caps: premium cap 6 (still 5 for MELON), contested cap 8, base cap 16.
+ENABLE_HERD_BATCH_BOOTSTRAP = True
+# PLAN_TO_3000 Phase 2 (also gates main_herdbatch.py). ON: once an animal-heavy
+# opponent is visible (a placed animal or >=2 structures), buy the whole
+# affordable herd deficit per species in one order line instead of one
+# animal/turn, so the herd doesn't fall permanently behind a compounding
+# animal factory. OFF always uses the conservative one-per-turn cadence
+# regardless of the opponent (batching with no visible animal threat halved
+# the bank vs starter in local A/B, so this only ever fires when ON and an
+# opponent herd is actually visible).
+ENABLE_P2K_CROP_PRUNE = False
+# P2k, OFF by default -- tried and reverted twice (see choose_crops' inline
+# note): a 40-game pinned ablation showed 42.5% win/-$3.5k margin WITH the
+# prune vs 57.5%/+$10k WITHOUT it on the diverse pool. Kept here, default
+# False, only so a future re-test doesn't have to re-derive the exact guard
+# from scratch -- flipping it True re-adds the glut-discounted break-even
+# prune this file's auto-loop kept re-inventing on its own.
+P2K_ONE_TIME_BREAKEVEN = 1.6
+P2K_ONGOING_BREAKEVEN = 0.9
 
 
 def _shape(func, x, T):
@@ -273,7 +359,11 @@ def animal_targets(obs, me):
     opp_animals = sum(1 for row in opp_farm.get("tiles", []) for t in row
                       if isinstance(t, dict) and t.get("animal"))
     if day >= 7 and opp_animals >= 4:
-        want = {"COW": 5, "GOOSE": 5, "SHEEP": 1}
+        if ENABLE_F1_HERD_MATCH:
+            want = {"COW": 5, "GOOSE": 5, "SHEEP": 1}
+        else:
+            want = dict(F1_OFF_WANT)
+            cap = min(cap, F1_OFF_CAP)
     else:
         want = {"COW": 9, "GOOSE": 2, "SHEEP": 2 if dem["WOOL"] else 1}
     out, tot = {}, 0
@@ -438,19 +528,28 @@ def choose_crops(obs, me, private, counts, plant_slots):
     # harvestable to fund the 2nd quadrant. Front-load WHEAT + CARROT (first yield
     # day 2) so cash flows from ~day 4 and the land/hands snowball can start.
     early = day < 7
+    # AUTO iter 0: a re-add of P2k (marginal-value crop prune -- glut-discount
+    # price by committed acreage, drop a crop that no longer clears seed
+    # break-even) was found in this file and REMOVED again. It was already
+    # tried and reverted once (see main.py's choose_crops comment and
+    # experiments/LEDGER.md): 40-game pinned ablation, diverse pool, showed
+    # 42.5% win / -$3.5k margin WITH the prune vs 57.5% / +$10k WITHOUT it --
+    # the hard break-even gate starves the field faster than a soft market
+    # ever does. This run's diagnosis matches that signature exactly: plants
+    # stuck at 18-22 through day ~15-20 in the main_v12/main_p3/main_v7 losses
+    # while opponents pull ahead on WHEAT/CARROT/TOMATO volume from day 5. The
+    # tuned `share`/`val` logic below already discounts a soft market; do not
+    # re-add a hard prune here.
     mkt_inv_cc = ((obs.get("market") or {}).get("inventory", {})) or {}
     targets = {}
     for crop, (cost, fy, my, ongoing, plant_by) in CROPS.items():
         if day > plant_by:
             continue
-        # P2k: marginal-value prune. Glut-discount the price by the acreage
-        # already committed (ours + opp) and require it to still clear break-even
-        # -- ~1.6x seed for a one-timer (single harvest pays it back) or ~0.9x for
-        # an ongoing crop (many harvests). Stops spending a slot + a week of
-        # watering on an already-crashed CARROT/MELON or an over-glutted market.
-        proj_inv = mkt_inv_cc.get(crop, 10000) + 3 * (counts.get(crop, 0) + opp[crop])
-        if price_at(crop, proj_inv) < cost * (1.6 if crop in ONE_TIME else 0.9):
-            continue
+        if ENABLE_P2K_CROP_PRUNE:
+            proj_inv = mkt_inv_cc.get(crop, 10000) + 3 * (counts.get(crop, 0) + opp[crop])
+            breakeven = P2K_ONE_TIME_BREAKEVEN if crop in ONE_TIME else P2K_ONGOING_BREAKEVEN
+            if price_at(crop, proj_inv) < cost * breakeven:
+                continue
         pr = prices.get(crop, BASE[crop])
         val = pr / BASE[crop]
         if crop == "WHEAT":
@@ -463,19 +562,27 @@ def choose_crops(obs, me, private, counts, plant_slots):
             if day > 22:
                 share += 0.22
         elif crop == "TOMATO":
-            # ongoing crop: a plant set down by day ~18 still fires yield ticks to
-            # season end, and replay 104701051 shows tomato is the single biggest
-            # crop line for the winner (price ran 77 -> 238 as they kept ~22 tiles
-            # planted into day 22). Establish a little early, go heavy once cash
-            # is flowing.
-            share = 0.16 if early else 0.44 + 0.06 * demand[crop]
+            # AUTO iter 2: restored main.py's TOP10_TEARDOWN finding 3 (P4b+
+            # cropflip, submission 56023304, validated on a 12-ep ladder read
+            # per TASKS.md). main_auto.py had the OLD pre-teardown share here
+            # (0.44+0.06*demand, promoted) -- a 22-replay/8-priced-game top-10
+            # pull showed TOMATO actually sits flat near its $60 base (61-95)
+            # almost the whole game (not scarce) while top players allocate
+            # only ~1.3% of the field to it. Demoted to opportunistic/minor.
+            share = 0.08 if early else (0.14 + 0.04 * demand[crop] if val >= 1.15 else 0.0)
             if day > 21:
                 share *= 0.7
         elif crop == "STRAWBERRY":
-            # safest premium: across 30 ladder games STRAWBERRY never ended below
-            # 185 (base 120) -- ongoing, high scarcity ceiling, no glut collapse.
-            # $100 seed + 10-day wait makes it a bad week-1 buy; ramp it after.
-            share = 0.0 if day < 4 else (0.12 if early else 0.30 + 0.05 * demand[crop])
+            # AUTO iter 2: restored main.py's TOP10_TEARDOWN finding 3 -- the
+            # same 22-replay pull showed STRAWBERRY reliably running $150-236
+            # (25-95% above base) through mid/late game, a real sustained
+            # scarcity ceiling unlike tomato's flat price; top players commit
+            # ~58% of the field to it. main_auto.py's worst losses this run
+            # (main_v12/main_p3/c_v5clone) showed exactly the mirror-image sell
+            # mix vs the pre-teardown share below: e.g. seed 299939819 we sold
+            # 159 TOMATO vs opponent's 30, but only 56 STRAWBERRY vs their 135.
+            # Promoted back to primary premium crop.
+            share = 0.0 if day < 4 else (0.16 if early else 0.44 + 0.06 * demand[crop])
         else:  # MELON - scarcity side bet, hard cap, crashes on glut
             share = 0.0 if early else (0.10 if val >= 0.85 else 0.0)
         share *= max(0.30, min(2.0, val))
@@ -542,7 +649,7 @@ def build_tasks(obs, me, private):
                         tasks.append((10000 + 5 * hour, pos, ["WATER"]))
                     elif not ongoing and (my + 1) // 2 <= age <= my:
                         tasks.append((6200 + age, pos, ["WATER"]))   # yield-window growth
-                    else:
+                    elif ENABLE_P1W_EVENING_WATER:
                         # P1w: in the last few turns of the day, top off an
                         # otherwise-dry plant ahead of planting (2400) and weeds
                         # (2500) -- still below comfort-water's own daytime value
@@ -550,6 +657,8 @@ def build_tasks(obs, me, private):
                         # night unwatered and become tomorrow's 10000 survival
                         # water (and a 2-miss weed if a hand can't reach it).
                         tasks.append((3000 if hour >= 20 else 2600, pos, ["WATER"]))
+                    else:
+                        tasks.append((2600, pos, ["WATER"]))         # comfort water
                 # ---- harvesting ----
                 if yu > 0 and age >= fy:
                     if not ongoing:
@@ -580,7 +689,7 @@ def build_tasks(obs, me, private):
                 # and every reclaimed tile is a replant slot, but still < 2600.
                 if liquidate:
                     weed_pri = 0
-                elif day >= 18:
+                elif ENABLE_P4C_LATE_WEED and day >= 18:
                     weed_pri = 2500
                 else:
                     weed_pri = 2200
@@ -607,11 +716,14 @@ def add_plant_tasks(obs, me, private, counts, tasks, n_units, reserved=()):
     # watered+harvested daily. Planting past that just seeds weeds29 (17-34 in
     # the loss games) -- the furthest tiles are better left fallow (0.5%/day
     # weed risk) than planted to die (~100% in 2 unwatered days).
-    crop_units = max(1, n_units - min(4, max(0, n_units - 6)))
-    coverage_cap = crop_units * 8
-    room = min(capacity - planted,
-               max(0, n_units * 22 - unwatered),
-               coverage_cap - planted)
+    if ENABLE_P4_COVERAGE_CAP:
+        crop_units = max(1, n_units - min(4, max(0, n_units - 6)))
+        coverage_cap = crop_units * 8
+        room = min(capacity - planted,
+                   max(0, n_units * 22 - unwatered),
+                   coverage_cap - planted)
+    else:
+        room = min(capacity - planted, max(0, n_units * 22 - unwatered))
     if room <= 0:
         return
     empty = sorted(
@@ -705,7 +817,10 @@ def assign(obs, me, private, tasks, zones, forced=None):
             # a thin priority edge and trek across the farm for it while a nearer
             # hand would have reached it next turn -- charge out-of-zone walking
             # more (40/step vs 25) so cross-farm pickups need a real priority gap.
-            step_cost = 25 if in_zone else 40
+            if ENABLE_P4R_WALKAWARE:
+                step_cost = P4R_ON_INZONE_STEP_COST if in_zone else P4R_ON_OUTZONE_STEP_COST
+            else:
+                step_cost = P4R_OFF_STEP_COST
             eff = pr + (2000 if d == 0 else 0) + (150 if in_zone else 0) - step_cost * d
             if best is None or eff > best[0]:
                 best = (eff, tgt, act)
@@ -751,8 +866,11 @@ def assign(obs, me, private, tasks, zones, forced=None):
         for i in range(n):
             if busy[i]:
                 continue
-            own = [t for t in task_tiles if t in zones[i]] or list(zones[i])
-            pend = own or all_pend
+            if ENABLE_P4R_WALKAWARE:
+                own = [t for t in task_tiles if t in zones[i]] or list(zones[i])
+                pend = own or all_pend
+            else:
+                pend = all_pend
             if not pend:
                 continue
             tgt = min(pend, key=lambda c: dist(pos[i], c))
@@ -780,15 +898,19 @@ def market_orders(obs, me, private, counts, n_units):
     if day >= 25:
         base_reserve = 60
     elif day < 16:
-        # AUTO iter 0: the old ramp (min(1400, 200+150*day)) hit $1400 by day 8 --
-        # above our actual build-out-phase cash (~$1.3k in the 0-60 losses) -- so
-        # `money - reserve` went negative and the animal `affordable` calc, the
-        # feed-wheat buy, the seed buy AND the land gate all silently failed to
-        # fire days 4-16. Meanwhile the v5/p3-clone opponents run a flat ~$200
-        # reserve, pour the opening stake into herd+land, dip to ~$40, and
-        # compound past us on the milk+free-fertilizer line. Hold only a token
-        # day-0 cushion and let the early bankroll snowball like the clones do.
-        base_reserve = min(400, 150 + 50 * day)     # d0=150 ... d5+=400 (capped)
+        if ENABLE_AUTO_RESERVE_RETUNE:
+            # AUTO iter 0: the old ramp (min(1400, 200+150*day)) hit $1400 by
+            # day 8 -- above our actual build-out-phase cash (~$1.3k in the
+            # 0-60 losses) -- so `money - reserve` went negative and the
+            # animal `affordable` calc, the feed-wheat buy, the seed buy AND
+            # the land gate all silently failed to fire days 4-16. Meanwhile
+            # the v5/p3-clone opponents run a flat ~$200 reserve, pour the
+            # opening stake into herd+land, dip to ~$40, and compound past us
+            # on the milk+free-fertilizer line. Hold only a token day-0
+            # cushion and let the early bankroll snowball like the clones do.
+            base_reserve = min(400, 150 + 50 * day)     # d0=150 ... d5+=400 (capped)
+        else:
+            base_reserve = min(1400, 200 + 150 * day)   # P1 original ramp
     else:
         base_reserve = 200
     # P3f: cash-flow-aware relax. The P1 ramp above is a blind day-scaled cushion;
@@ -800,16 +922,19 @@ def market_orders(obs, me, private, counts, n_units):
     # cushion. Never below HARD_FLOOR, never above the ramp: the poverty trap was
     # a reserve set blindly LOW, this only frees value we can already see.
     HARD_FLOOR = 120
-    n_placed_now = sum(1 for row in me["tiles"] for t in row
-                       if isinstance(t, dict) and t.get("animal"))
-    shed_value = sum(int(q) * price_at(it, mkt_inv.get(it, 10000))
-                     for it, q in shed.items() if it in BASE and int(q) > 0)
-    herd_2d = n_placed_now * 90            # ~1 premium produce/animal/2days, rough
-    near_income = shed_value + herd_2d
-    if near_income >= 1.5 * base_reserve:
-        reserve = max(HARD_FLOOR, int(base_reserve * 0.55))
-    elif near_income >= 0.75 * base_reserve:
-        reserve = max(HARD_FLOOR, int(base_reserve * 0.8))
+    if ENABLE_P3F_CASHFLOW_RESERVE:
+        n_placed_now = sum(1 for row in me["tiles"] for t in row
+                           if isinstance(t, dict) and t.get("animal"))
+        shed_value = sum(int(q) * price_at(it, mkt_inv.get(it, 10000))
+                         for it, q in shed.items() if it in BASE and int(q) > 0)
+        herd_2d = n_placed_now * 90         # ~1 premium produce/animal/2days, rough
+        near_income = shed_value + herd_2d
+        if near_income >= 1.5 * base_reserve:
+            reserve = max(HARD_FLOOR, int(base_reserve * 0.55))
+        elif near_income >= 0.75 * base_reserve:
+            reserve = max(HARD_FLOOR, int(base_reserve * 0.8))
+        else:
+            reserve = base_reserve
     else:
         reserve = base_reserve
     # spread seed top-ups across turns so a single call can't re-crater the farm
@@ -859,8 +984,9 @@ def market_orders(obs, me, private, counts, n_units):
         # contested animal products (30 ladder games: prices collapse to <10 when
         # both farms dump) -- sell only a thin slice per turn and never into a
         # real dip; the day-28 full-dump branch still clears the shed.
-        contested = item in ("MILK", "WOOL")
-        staple_fert = item == "FERTILIZER"
+        contested = item in ("MILK", "WOOL") if ENABLE_P2_FERTILIZER_STAPLE \
+            else item in ("MILK", "WOOL", "FERTILIZER")
+        staple_fert = item == "FERTILIZER" and ENABLE_P2_FERTILIZER_STAPLE
         if day >= 28:
             amount = qty
         elif staple_fert:
@@ -882,21 +1008,28 @@ def market_orders(obs, me, private, counts, n_units):
         else:
             prem = item in PREMIUM
             keep = (0.80 if prem else 0.72) * base
-            # AUTO iter 1: the winning v5/p3 clones move 2-3x more premium volume
-            # than us every game (loss traces: STRAWBERRY 28 vs 93, MILK 71 vs
-            # 162) and compound the extra cash into an earlier herd/land lead. The
-            # market barely moves (both farms combined dent inventory ~100-450
-            # units/season) so the old 6/turn premium + 8/turn contested caps just
-            # stranded shed backlog while the price still sat well above `keep`.
-            # Raise the caps ~2x; the `while ... price_at(...) >= keep` guard and
-            # the `contested and p0 < 0.5*base` skip still bound every sell to
-            # prices the curve genuinely supports, so this can only move more when
-            # there is real room. MELON keeps a tight cap (sq glut curve crashes).
-            cap = 16
-            if prem:
-                cap = 5 if item == "MELON" else 12
-            if contested:
-                cap = 14
+            if ENABLE_AUTO_SELL_CAP_RAISE:
+                # AUTO iter 1: the winning v5/p3 clones move 2-3x more premium
+                # volume than us every game (loss traces: STRAWBERRY 28 vs 93,
+                # MILK 71 vs 162) and compound the extra cash into an earlier
+                # herd/land lead. The market barely moves (both farms combined
+                # dent inventory ~100-450 units/season) so the old 6/turn
+                # premium + 8/turn contested caps just stranded shed backlog
+                # while the price still sat well above `keep`. Raise the caps
+                # ~2x; the `while ... price_at(...) >= keep` guard and the
+                # `contested and p0 < 0.5*base` skip still bound every sell to
+                # prices the curve genuinely supports, so this can only move
+                # more when there is real room. MELON keeps a tight cap (sq
+                # glut curve crashes).
+                cap = 16
+                if prem:
+                    cap = 5 if item == "MELON" else 12
+                if contested:
+                    cap = 14
+            else:
+                cap = 6 if prem else 16          # v10 original caps
+                if contested:
+                    cap = 8
             if p0 >= 1.4 * base:            # far from a glut -> move more
                 cap = int(cap * min(4.0, p0 / base))
             amount = 0
@@ -950,7 +1083,7 @@ def market_orders(obs, me, private, counts, n_units):
             # fires as soon as the factory lays structures (~day 2-4) -- early
             # enough to break our poverty trap. Gating on placed animals alone
             # (opp_an >= 3) triggered too late: bot_animalfarm stayed 1-7.
-            if opp_an >= 1 or opp_structs >= 2:
+            if ENABLE_HERD_BATCH_BOOTSTRAP and (opp_an >= 1 or opp_structs >= 2):
                 # PLAN_TO_3000 Phase 2 -- dawn herd BATCH bootstrap, ONLY when the
                 # opponent is actually running a herd. The old loop bought exactly
                 # one animal per turn behind a raw-cash gate, so vs an animal
@@ -995,7 +1128,31 @@ def market_orders(obs, me, private, counts, n_units):
             have_w = int(shed.get("WHEAT", 0))
             if have_w < need_w:
                 wp = max(1, price_at("WHEAT", mkt_inv.get("WHEAT", 10000)))
-                b = min(need_w - have_w, 10, int(max(0, money - reserve) // wp))
+                # AUTO iter 1: restore the feed-emergency-floor fix (main.py,
+                # committed acbcf93 -> submission 56016363, 574.6, best ladder
+                # score to date) that this file had silently dropped -- an
+                # earlier auto-iteration collapsed both branches down to the
+                # single `b = ... money - reserve ...` line below, which is
+                # exactly the "restock always reserve-gated" bug the fix was
+                # written to kill. Feed is a survival buy: missing it 2 days
+                # running permanently loses the animal (sunk cost + all future
+                # produce/fertilizer forever), a strictly worse outcome than
+                # dipping the cushion a few coins. This run's worst losses
+                # (all vs main_v12/main_p3/main_p2, "other" lineage clones)
+                # show our animal count stuck at 3 against a target ~11 and an
+                # opponent herd of 8-9 -- consistent with animals starving out
+                # under the flat reserve gate while cash sits at the day-scaled
+                # floor for 15+ days. Only a genuine zero-wheat emergency
+                # bypasses the cushion; restocking with any feed still on hand
+                # stays reserve-gated as before.
+                FEED_EMERGENCY_FLOOR = 30
+                if have_w == 0 and ENABLE_FEED_EMERGENCY_FLOOR:
+                    feed_reserve = FEED_EMERGENCY_FLOOR
+                    emerg_need = placed_total + pending
+                    b = min(emerg_need - have_w, 10, int(max(0, money - feed_reserve) // wp))
+                else:
+                    feed_reserve = reserve
+                    b = min(need_w - have_w, 10, int(max(0, money - feed_reserve) // wp))
                 if b > 0:
                     buys_hi.append(["BUY_PRODUCT", "WHEAT", b])
                     money -= b * wp
@@ -1073,5 +1230,5 @@ def agent(obs):
 
 
 if __name__ == "__main__":
-    print("Kaggriculture Agent v11 (v10 + P2k crop-prune + P3f cash-flow reserve "
-          "+ P1w evening water + P4r walk-aware assign)")
+    print("Kaggriculture Agent v11 (v10 + P3f cash-flow reserve "
+          "+ P1w evening water + P4r walk-aware assign; P2k crop-prune reverted)")
