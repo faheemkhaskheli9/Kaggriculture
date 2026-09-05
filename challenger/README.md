@@ -72,10 +72,42 @@ per-crop far lower, so seed choice stays with the incumbent's tuned
   standing finding that herd/economy *shape* changes lose head-to-head.
 
   **Decision:** mined-schedule strategic controller **rejected**. All three
-  toggles default OFF (package == incumbent, exact no-op). `max_hands=12` noted
-  as a possible standalone `main.py` §1 candidate, not a challenger result.
-  Next: pivot to a behavior-cloning cadence controller (Workstream A) — the
-  hand-coded schedule route is a dead end for the strategic layer.
+  toggles default OFF (package == incumbent, exact no-op). `max_hands=12` shipped
+  as `main.py` `ENABLE_MAXHANDS_12` (default OFF, commit `c2d3857`) — a
+  ladder-slot candidate, not a challenger result.
+
+- **v1 — BC cadence controller (2026-09-06)** — `challenger/clone.py` +
+  `challenger/clone_model.json`. One dependency-free binary Naive Bayes per
+  learnable action *family*, trained on `ml/artifacts/top_policy.jsonl` with the
+  benchmark's exact episode-held-out split and feature binning. Held-out
+  (3,600 val rows), verified identical via the serialized `CadenceModel`
+  inference path:
+
+  | Family | F1 | precision | recall | threshold |
+  |---|---|---|---|---|
+  | HIRE | **0.774** | 0.68 | 0.90 | 0.75 |
+  | BUY_SEED | 0.496 | 0.39 | 0.67 | 0.40 |
+  | SELL | 0.505 | 0.36 | 0.83 | 0.05 |
+
+  Family micro-F1 0.535 (vs 0.419 over all 6 families — BUY_LAND/BUY_ANIMAL
+  dropped, they're <0.07). Numbers reproduce `tools/benchmark_top_policy.py`
+  exactly. **Honest read:** only HIRE is genuinely usable; SELL/BUY_SEED
+  precision ~0.37 would fire constant false positives. HIRE cadence is already
+  most of what the incumbent's dawn hire ramp + `ENABLE_MAXHANDS_12` control, so
+  the marginal value of wiring this in is thin — matches TASKS.md's standing
+  benchmark conclusion. **Not wired into `agent.py`.** Remaining work if pursued:
+  `live_features(obs, me, private, hist)` to rebuild the binned feature dict
+  from a kaggle obs + an in-episode `EpisodeHistory` tracker (turns_since /
+  market_counts / previous_day_*), then a gate in `agent.py` that only lets the
+  incumbent skip/defer a HIRE when the model says a top player wouldn't, then a
+  paired A/B. Flag to the user before spending a session on that given the
+  ceiling.
+
+## Retrain the clone
+
+```bash
+python -m challenger.clone           # -> challenger/clone_model.json + held-out check
+```
 
 ## Run it
 
