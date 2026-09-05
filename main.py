@@ -431,6 +431,40 @@ ENABLE_TXCASH_FORECAST = True
 # isolation, per the plan's explicit "test exactly one mechanism at a time"
 # rule. OFF restores the pre-fix behaviour (every gate uses raw `money`).
 
+ENABLE_MKT_DEMAND_MATCH = False
+# MKT_DEMAND_MATCH (docs/PLAN_ROUTE_ENGINE.md Phase 1a: opponent-aware market
+# timing -- demand-matched premium sell sizing). The engine drops the marginal
+# price *within* one SELL order (knowledge-base/03 "How orders execute": a
+# SELL TOMATO 60 realises a worse average than 60 small sells spread across
+# turns), while town+shops drain the market for free every few hours and hold
+# premium prices well above base. ON: on the ordinary crop-sell path (day<28,
+# not the contested-animal or staple-fertilizer branches), additionally cap the
+# per-turn amount at an estimate of this hour's free town/shop absorption for
+# that product -- FLOOR always, plus PER_SHOP per unlocked shop that demands it
+# on a shop-consumption tick (hour % 4 == 0) -- so the rest of the shed is held
+# back to sell into later turns nearer the scarcity price instead of walking
+# this turn's own order down the curve. Overrides the existing
+# `p0 >= 1.4*base -> widen cap` loosening (holding inventory back is exactly
+# the point when the price is already high). Stops tightening from
+# RELAX_DAY on so the shed still clears before the day-28 full-dump branch.
+# OFF: sizing is unchanged (curve-threshold `while` loop + the far-from-glut
+# cap widen only).
+# **REJECTED on first gate (2026-09-05), default stays False.** 80-pair frozen
+# adversarial-v1 A/B (--pick-seed 260906, ON vs HEAD): score delta +0.0%,
+# 90% CI [-2.5%, +2.5%], margin delta mean -7099 with EVERY archetype
+# negative (premium -14124, animalfactory -8290, wheatflood -5014,
+# top10clone -2203), 1 improved / 77 same / 2 regressed. Holding premium
+# inventory back to sell "later at a higher price" doesn't pay in this env --
+# the curve is near-flat with inventory pinned near I0 all season (KB 03), so
+# the existing `keep`-threshold loop already protects price, and the throttle
+# just delays revenue -> less cash to compound land/animal buys -> the margin
+# loss. Consistent with the repo's standing "market barely moves, sell cadence
+# isn't the lever" finding. Kept as a False toggle so a re-test doesn't
+# re-derive the guard; do not flip True without a new passing gate.
+MKT_DEMAND_MATCH_FLOOR = 2
+MKT_DEMAND_MATCH_PER_SHOP = 2
+MKT_DEMAND_MATCH_RELAX_DAY = 24
+
 
 def _shape(func, x, T):
     x = max(0.0, x)
@@ -1338,6 +1372,7 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
     # hands, not feed wheat on the animal crew; it zeroed the floor, the herd
     # went underfed, and coins vs starter fell ~45%. See docs/PLAN_LADDER_V10.md.)
     wheat_floor = (2 * n_placed + 4) if (USE_ANIMALS and n_placed and day < 28) else 0
+    dm_demand = demand_counts(obs) if ENABLE_MKT_DEMAND_MATCH else None
     for item, qty in list(shed.items()):
         qty = int(qty)
         if item == "WHEAT":
@@ -1379,6 +1414,11 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
                 cap = 8
             if p0 >= 1.4 * base:            # far from a glut -> move more
                 cap = int(cap * min(4.0, p0 / base))
+            if ENABLE_MKT_DEMAND_MATCH and day < MKT_DEMAND_MATCH_RELAX_DAY:
+                absorb = MKT_DEMAND_MATCH_FLOOR
+                if hour % 4 == 0:          # shop consumption tick
+                    absorb += MKT_DEMAND_MATCH_PER_SHOP * dm_demand[item]
+                cap = min(cap, max(MKT_DEMAND_MATCH_FLOOR, int(absorb)))
             amount = 0
             while amount < min(qty, cap) and price_at(item, inv0 + 2 * amount) >= keep:
                 amount += 1
