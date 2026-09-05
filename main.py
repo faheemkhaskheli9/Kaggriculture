@@ -414,6 +414,20 @@ HERDBATCH_DISCOUNT = 0.6
 HERDBATCH_FEED_DAYS = 2
 HERDBATCH_CASH_FLOOR = 200
 
+ENABLE_FEED_FIRST_CREW = False
+# AM-FEED-1 (TASKS.md shared work board, 2026-09-05). ON: in animal_crew_actions
+# step 3 (walk-to-service), a crew unit that is carrying wheat and has any
+# unfed animal still pending goes strictly to the nearest hungry animal --
+# yield/fertilizer/CARE targets are ignored until every feedable animal is
+# claimed. OFF (current behaviour) merges feed, harvest/fertilizer and CARE
+# into one goal list and picks the globally-nearest of any type, so a crew
+# unit standing near a harvest tile services that instead of a hungry animal
+# two steps further out; two such turns in a row on the same animal is a
+# permanent escape. yield/fert/harvest are also emitted as ordinary tasks
+# (see this function's docstring) so the non-crew units still clear them --
+# the crew giving them up costs at most a one-turn delay, versus a lost
+# animal. Scoped to the shared crew (all modes), not just ANTI_META.
+
 ENABLE_TXCASH_FORECAST = True
 # TXCASH (docs/IMPACT_RANKED_LEADERBOARD_PLAN.md E2 candidate #1: "transactional
 # cash forecast including same-turn sales"). ON: the top-3 highest-value SELL
@@ -811,9 +825,13 @@ def animal_crew_actions(obs, me, private, reserved, crew_idx, positions, invs):
             continue
 
         # 3. walk to the nearest animal that needs service
-        goals = [p for p in pending_feed if wheat > 0]
-        goals += [p for p in yield_or_fert if p not in claimed]
-        goals += [p for p in care_spots if p not in claimed]
+        feed_goals = [p for p in pending_feed if wheat > 0]
+        if ENABLE_FEED_FIRST_CREW and feed_goals:
+            goals = feed_goals
+        else:
+            goals = list(feed_goals)
+            goals += [p for p in yield_or_fert if p not in claimed]
+            goals += [p for p in care_spots if p not in claimed]
         if goals:
             tgt = min(goals, key=lambda p: dist(pos, p))
             claimed.add(tgt)
