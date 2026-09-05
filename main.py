@@ -172,6 +172,52 @@ def price_at(item, inv):
     return max(1, int(round(val)))
 
 
+# ---- Lever 2 (docs/PLAN_TOP10.md): a computed marginal-value estimator,
+# instead of the hand-tuned priority/share constants TOP10_TEARDOWN kept
+# needing a fresh replay teardown to re-derive (finding 1: the land gate;
+# finding 3: the crop-mix shares). MAX_YIELD/INTERVAL are the real engine
+# constants (kaggle_environments/envs/kaggriculture/kaggriculture.py's own
+# CROPS table), not a guess -- CROPS above only carries what the rest of
+# main.py already needed (cost/first_yield/max_yield_day/ongoing/plant_by).
+MAX_YIELD = {"WHEAT": 6, "CARROT": 4, "TOMATO": 4, "STRAWBERRY": 4, "MELON": 6}
+INTERVAL = {"TOMATO": 1, "STRAWBERRY": 2}          # ongoing crops only
+# Per-tile yield used to discount a crop's *projected* market inventory as
+# more of it gets committed within one choose_crops call / by the opponent's
+# existing field -- a rough one-harvest-cycle magnitude, not the full-season
+# total (that would overstate near-term price impact for a slow ongoing crop
+# harvested gradually over many days).
+_PICK_DECAY = {"WHEAT": 3, "CARROT": 2, "TOMATO": 1, "STRAWBERRY": 1, "MELON": 4}
+
+
+def _crop_tile_value(crop, cost, fy, my, ongoing, remaining, price):
+    """Expected ($ per tile per remaining season-day, realistic total yield)
+    for planting `crop` right now, given `remaining` days left before
+    liquidation and a representative sale `price`. Replaces a hand-set
+    target share with the engine's actual growth math:
+
+    * one-time crops accrue +1 yield/watered day (unfertilized) across the
+      [(max_yield_day+1)//2, max_yield_day] window, capped at MAX_YIELD, and
+      occupy the tile through ~max_yield_day+1 days (main.py lets it "fatten"
+      one extra day before harvesting, see build_tasks);
+    * ongoing crops accrue +1 yield unit every `interval` days once past
+      first_yield_day, harvested every tick so it never decays into a weed.
+
+    Returns (value, expected_total_yield); value <= 0 means "don't plant
+    this," e.g. too little season left to reach first_yield_day.
+    """
+    if remaining < fy:
+        return -1.0, 0
+    if not ongoing:
+        window_start = (my + 1) // 2
+        yield_est = min(MAX_YIELD[crop], my - window_start + 1)
+        occupancy = min(remaining, my + 1)
+        return (price * yield_est - cost) / max(1, occupancy), yield_est
+    interval = INTERVAL[crop]
+    n_ticks = max(0, remaining - fy) // interval + 1
+    yield_est = n_ticks
+    return (price * yield_est - cost) / remaining, yield_est
+
+
 def dist(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
@@ -427,91 +473,90 @@ def choose_crops(obs, me, private, counts, plant_slots):
     """Return a list of crop names (length == plant_slots) to plant this turn."""
     day = obs.get("day", 0)
     prices = (obs.get("market") or {}).get("prices", {})
-    demand = demand_counts(obs)
+    mkt_inv = (obs.get("market") or {}).get("inventory", {})
     opp = field_counts(obs["farms"][1 - obs["player"]])
     total = max(1, sum(counts.values()) + plant_slots)
 
-    # Target share of the field for each crop. Ongoing crops (tomato, strawberry)
-    # have huge scarcity ceilings in this market - replay self-play drove tomato
-    # to $564 and strawberry to $197 - so they get the bulk of the field whenever
-    # the calendar still lets a plant finish a useful number of yield ticks.
     # Week 1 is a liquidity race, not a value race. Probe of the old mix: the
     # field sat at 1 quadrant and $206 cash until ~day 15 because week-1 plantings
     # were tomato/strawberry/melon (first yield day 8-10+), so nothing was
     # harvestable to fund the 2nd quadrant. Front-load WHEAT + CARROT (first yield
-    # day 2) so cash flows from ~day 4 and the land/hands snowball can start.
+    # day 2) so cash flows from ~day 4 and the land/hands snowball can start. This
+    # is a cash-flow-*timing* rule (raise money soon vs. raise the most money
+    # eventually), a dimension the Lever 2 value calc below doesn't model --
+    # keep it as a fixed bootstrap rather than folding it into the calc.
     early = day < 7
-    # NOTE: a marginal-value "prune a crop whose glut-discounted price no longer
-    # clears seed break-even" guard was tried here (P2k) and REVERTED -- 40-game
-    # pinned ablation, diverse pool: dropping it took the build from 42.5% to
-    # 57.5% win / +$10k mean margin. The tuned share logic below already handles
-    # a soft market via `val`; the hard prune just starved the field.
-    targets = {}
-    for crop, (cost, fy, my, ongoing, plant_by) in CROPS.items():
-        if day > plant_by:
-            continue
-        pr = prices.get(crop, BASE[crop])
-        val = pr / BASE[crop]
-        if crop == "WHEAT":
-            share = 0.50 if early else 0.24
-        elif crop == "CARROT":
-            # fast cash early; otherwise the worst $/tile-day crop in the set
-            # (low ceiling, few consumers, crashes on glut) -- only on live
-            # PET_CAFE/FARMERS_MARKET demand, plus a late quick-cash bump.
-            share = 0.28 if early else 0.05 * demand[crop]
-            if day > 22:
-                share += 0.22
-        elif crop == "TOMATO":
-            # TOP10_TEARDOWN finding 3: demoted from primary to opportunistic.
-            # The old share here (0.44+) was set from one old replay
-            # (104701051) where tomato ran 77->238 for the winner. A fresh
-            # 22-replay / 8-priced-game top-10 pull shows the opposite is
-            # true now -- TOMATO sits flat near its $60 base (61-95) almost
-            # the whole game in top-tier play (not actually scarce), and top
-            # players' realized field allocation matches: 1.3% tomato vs
-            # 58% strawberry. Keep it as a minor/opportunistic side bet
-            # (melon-style val gate) rather than a co-equal premium target.
-            share = 0.08 if early else (0.14 + 0.04 * demand[crop] if val >= 1.15 else 0.0)
-            if day > 21:
-                share *= 0.7
-        elif crop == "STRAWBERRY":
-            # TOP10_TEARDOWN finding 3: promoted to the primary premium crop.
-            # Across 22 top-10-caliber replays STRAWBERRY reliably ran
-            # $150-236 (25-95% above its $120 base) through mid/late game
-            # before every game's final-day liquidation dump -- a real,
-            # sustained scarcity ceiling, unlike tomato's flat price. Top
-            # players commit ~58% of the field to it. $100 seed + 10-day
-            # wait still makes it a bad week-1 buy; ramp hard after.
-            share = 0.0 if day < 4 else (0.16 if early else 0.44 + 0.06 * demand[crop])
-        else:  # MELON - scarcity side bet, hard cap, crashes on glut
-            share = 0.0 if early else (0.10 if val >= 0.85 else 0.0)
-        share *= max(0.30, min(2.0, val))
-        share *= max(0.35, 1.0 - 0.18 * opp[crop])
-        if share > 0:
-            targets[crop] = share
-
-    if not targets:
-        return []
-    ssum = sum(targets.values())
-    want = {c: s / ssum * total for c, s in targets.items()}
-    # absolute safety caps (crashes / stale-plant risk)
-    caps = {"MELON": 5, "CARROT": 10 if not early else 18}
-    if day > 22:
-        caps.pop("CARROT")
-    picks = []
-    cur = Counter(counts)
-    for _ in range(plant_slots):
-        best, bestgap = None, -1e9
-        for c, w in want.items():
-            if c in caps and cur[c] >= caps[c]:
+    if early:
+        targets = {}
+        for crop, (cost, fy, my, ongoing, plant_by) in CROPS.items():
+            if day > plant_by:
                 continue
-            gap = w - cur[c]
-            if gap > bestgap:
-                best, bestgap = c, gap
+            pr = prices.get(crop, BASE[crop])
+            val = pr / BASE[crop]
+            if crop == "WHEAT":
+                share = 0.50
+            elif crop == "CARROT":
+                share = 0.28
+            elif crop == "TOMATO":
+                share = 0.08
+            elif crop == "STRAWBERRY":
+                share = 0.0 if day < 4 else 0.16
+            else:  # MELON: no week-1 case for it
+                share = 0.0
+            share *= max(0.30, min(2.0, val))
+            share *= max(0.35, 1.0 - 0.18 * opp[crop])
+            if share > 0:
+                targets[crop] = share
+        if not targets:
+            return []
+        ssum = sum(targets.values())
+        want = {c: s / ssum * total for c, s in targets.items()}
+        caps = {"MELON": 5, "CARROT": 18}
+        picks = []
+        cur = Counter(counts)
+        for _ in range(plant_slots):
+            best, bestgap = None, -1e9
+            for c, w in want.items():
+                if c in caps and cur[c] >= caps[c]:
+                    continue
+                gap = w - cur[c]
+                if gap > bestgap:
+                    best, bestgap = c, gap
+            if best is None:
+                break
+            picks.append(best)
+            cur[best] += 1
+        return picks
+
+    # ---- Lever 2 (docs/PLAN_TOP10.md): computed marginal value, not a
+    # hand-tuned share. TOP10_TEARDOWN finding 3 was "the STRAWBERRY/TOMATO
+    # shares are set backwards"; rather than re-guess the right numbers (and
+    # need a fresh replay teardown the next time the meta shifts), compute
+    # $-per-tile-per-remaining-day from the real engine growth/price
+    # constants (_crop_tile_value) and greedily fill slots by marginal
+    # value. Each pick discounts that crop's *projected* market inventory
+    # (via price_at, the same price-clearing curve a real sale would hit),
+    # which replaces the old fixed opp[]-count / self-share discounts with
+    # an actual market-crowding calculation instead of a guessed coefficient.
+    remaining = max(1, 29 - day)
+    caps = {"MELON": 5, "CARROT": 10 if day <= 22 else 999}
+    cur = Counter(counts)
+    proj_inv = {c: mkt_inv.get(c, 0) + opp[c] * _PICK_DECAY[c] for c in CROPS}
+    picks = []
+    for _ in range(plant_slots):
+        best, best_val = None, 0.0
+        for crop, (cost, fy, my, ongoing, plant_by) in CROPS.items():
+            if day > plant_by or cur[crop] >= caps.get(crop, 10**9):
+                continue
+            price = price_at(crop, proj_inv[crop])
+            val, _ = _crop_tile_value(crop, cost, fy, my, ongoing, remaining, price)
+            if val > best_val:
+                best, best_val = crop, val
         if best is None:
             break
         picks.append(best)
         cur[best] += 1
+        proj_inv[best] += _PICK_DECAY[best]
     return picks
 
 
@@ -908,18 +953,35 @@ def market_orders(obs, me, private, counts, n_units):
         if nth < 2:
             ok = day <= 18 and fill >= 0.55 and money >= cost + 400 + 200 * nth
         else:
-            # P4b (TOP10_TEARDOWN finding 1): 0/44 farm-samples across 22
-            # top-10-caliber ladder replays ever unlock the 4th quadrant --
-            # field capacity plateaus hard at 75 tiles (3 quadrants). Q4
-            # doubles the field to ~100 tiles without doubling the crew,
-            # which just manufactures weeds29 and adds walking distance for
-            # no matching production. The old gate (day 8-20, fill>=0.62,
-            # hands>=12, cost+2500) was permissive enough that we routinely
-            # cleared it locally anyway (median unlocked capacity by day 20
-            # was 100, i.e. all 4 quadrants) -- raise the hands bar well
-            # above what the crew-size data ever shows to effectively retire
-            # this buy, matching what real strong play does.
-            ok = (8 <= day <= 20 and fill >= 0.62 and n_units >= 18
+            # Lever 2 (docs/PLAN_TOP10.md): computed ROI instead of a
+            # hardcoded hands bar. P4b (TOP10_TEARDOWN finding 1) found
+            # 0/44 top-10-caliber farm-samples ever unlock the 4th quadrant
+            # and patched it with `n_units >= 18` -- a threshold picked to
+            # be effectively unreachable, not derived from anything. Compute
+            # it instead: (a) can the crew actually WORK the extra tiles --
+            # reuse add_plant_tasks' own coverage_cap formula (crop_units*8)
+            # so this doesn't invent a second, inconsistent notion of crew
+            # capacity; (b) does the best available crop's $/tile/remaining-
+            # day value (_crop_tile_value) clear the $4000 cost with margin
+            # over the days left. At typical crew sizes (~13 hands) this
+            # comes out false anyway -- coverage_cap doesn't reach 100 tiles
+            # until n_units is ~17 -- so it reproduces finding 1's "never
+            # buy it" result as a consequence of capacity math, not a
+            # separately-tuned number.
+            remaining = max(1, 29 - day)
+            quadrant_tiles = 25
+            crop_units = max(1, n_units - min(4, max(0, n_units - 6)))
+            coverage_cap = crop_units * 8
+            has_slack = (open_tiles + quadrant_tiles) <= coverage_cap
+            best_val = 0.0
+            for crop, (c_cost, fy, my, ongoing, plant_by) in CROPS.items():
+                if day > plant_by:
+                    continue
+                price = price_at(crop, mkt_inv.get(crop, 0))
+                val, _ = _crop_tile_value(crop, c_cost, fy, my, ongoing, remaining, price)
+                best_val = max(best_val, val)
+            expected_revenue = best_val * quadrant_tiles * remaining
+            ok = (has_slack and expected_revenue >= cost * 1.5
                   and money >= cost + 2500)
         if ok:
             buys_hi.append(["BUY_LAND"])
