@@ -14,7 +14,8 @@ checklist + current pointer, not a re-explanation.
 
 ## 0. Snapshot (update the date whenever you touch this file)
 
-- **Last updated:** 2026-09-05 (afternoon check)
+- **Last updated:** 2026-09-05 (evening — target changed to top-10, see `docs/PLAN_TOP10.md`)
+- **Explicit goal as of 2026-09-05: rank ≤10 (~2850-3010 rating), not "any improvement."** The §1 queue below (one hand-tuned constant per submission, ~2-3 day ladder-gated read, ~15-20 reads left before deadline) cannot reach that bar even in principle — see `docs/PLAN_TOP10.md`'s "Why" section for the math. §1 items still get done (they're free/queued), but the three levers in `PLAN_TOP10.md` (top-10-caliber local opponent from `top10_ladder/` replays, computed marginal-value estimator replacing hardcoded priority constants, routing fix as the execution substrate) are now the actual priority. Start there, not at 1d.
 - **Ladder rank:** ~5424/7533 as of the 2026-09-04 audit (`docs/PLAN_LADDER_NEXT.md`) — **re-check live**, don't trust this number past a few days.
 - **`56016363`** (v11+feedfloor, anchor, submitted 2026-09-04 16:29): now reads **500.3** on 27 episodes (13W-0T-14L, 48% score-rate; animal_factory 3-11/21%). The 574.6 figure was an early-sample read on ~13 eps and has since converged down — don't cite 574.6 again.
 - **`56023304`** (P4b+cropflip, submitted 2026-09-05 02:35): **503.6** on **12 episodes** (5W-0T-7L, 42% score-rate; animal_factory 1-5/17%) — worse than the anchor on both overall and animal_factory, and the land-starvation symptom is now consistent across every game, not scattered noise: avg quads29 3.0 (anchor 3.9, no game past 3) and avg plants29 14 (anchor 26). Still under the 20-ep call threshold, but trending toward **regress**, not flat-or-better. Already used today's one submission slot (`56023304`), so no action until tomorrow regardless — **next session: re-read at 20+ eps first; if it holds <48%/animal_factory<21%, revert to `0c2123d` (v11+feedfloor+P?f3) as tomorrow's single submission and loosen the Q4-gate threshold rather than re-deriving 1d from scratch.**
@@ -116,7 +117,8 @@ list accordingly.
 
 ## 4. Reference map (where the detail behind each item above lives)
 
-- `docs/PLAN_LADDER_NEXT.md` — current strategic plan narrative (supersedes `PLAN_LADDER_V10.md`).
+- `docs/PLAN_TOP10.md` — **current top priority**: why the §1 loop can't reach top-10, and the three structural levers (top10-clone local opponent, computed marginal-value estimator, routing) that can.
+- `docs/PLAN_LADDER_NEXT.md` — prior strategic plan narrative (supersedes `PLAN_LADDER_V10.md`; superseded in turn by `PLAN_TOP10.md`'s goal, its routing/teardown findings still hold).
 - `docs/TOP10_TEARDOWN.md` — the evidence base for items 1a/1c (land cap, crop mix, movement gap).
 - `docs/PLAN_RATING_IMPROVEMENT.md` — submission discipline + the day-2 cash-crater root-cause plan (item 1d).
 - `experiments/LEDGER.md` — per-version change/result/status log; update after every ladder read.
