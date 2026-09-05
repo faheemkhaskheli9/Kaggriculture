@@ -212,7 +212,7 @@ ANIMALS = {
 # after editing exactly one flag, to isolate which rule (if any) is actually
 # carrying or hurting the bundle.
 
-ENABLE_R1_LAND_FILL_GATE = True
+ENABLE_R1_LAND_FILL_GATE = False
 # R1 -- how full the *current* land must be before buying the next quadrant.
 # Mined: top players buy NE only once NW is 18-20/25 plants (fill ~0.72-0.80)
 # and SW only once the 2-quadrant field hits 30-41/50 (fill ~0.60-0.82) -- a
@@ -220,7 +220,7 @@ ENABLE_R1_LAND_FILL_GATE = True
 # crew split across quadrants before the first one was mostly worked.
 R1_FILL_THRESHOLD = 0.75                     # main.py value when this flag is False: 0.55
 
-ENABLE_R2_DISABLE_Q4 = True
+ENABLE_R2_DISABLE_Q4 = False
 # R2 -- whether the 4th quadrant (SE, $4000) can ever be bought. Mined: 0/17
 # farm-episodes that reach 3 quadrants ever buy the 4th, including several
 # sitting on $15k-$17k cash when the window passes -- a real behavioral cap
@@ -242,6 +242,18 @@ R3_HERD_CAP = {1: 6, 2: 13}                  # main.py value when False: {1: 3, 
 R3_HERD_CAP_DEFAULT = 15                     # main.py value when False: 13 (nq==3+)
 R3_WANT_NORMAL = {"COW": 10, "GOOSE": 3}     # main.py value when False: {"COW": 9, "GOOSE": 2}
 R3_WANT_MATCHED = {"COW": 6, "GOOSE": 6, "SHEEP": 2}   # main.py value when False: {"COW": 5, "GOOSE": 5, "SHEEP": 1}
+
+ENABLE_R3_CREW_FIX = True
+# R3 fix -- root-caused this session: the crew-size formula
+# `1 + max(n_animals, len(reserved))//5` sizes the animal crew off the
+# *reservation target* (len(reserved), set to the full R3_HERD_CAP the day a
+# quadrant opens), not the actual current herd. R3's 13->15 cap bump crosses
+# the //5 boundary (13->3 crew, 15->4 crew) immediately, pulling a 4th crop
+# hand off the field from day 1 even though the herd hasn't grown yet -- the
+# same mechanism the rejected E2-candidate-4 fixed-crew test showed costs
+# crop margin. This flag drops len(reserved) from the crew-size formula so
+# crew scales with animals actually owned. False restores the exact
+# max(n_animals, len(reserved)) formula (main.py's current behavior).
 # ---------------------------------------------------------------------------
 
 
@@ -1207,7 +1219,8 @@ def agent(obs):
             n_animals = sum(1 for row in me["tiles"] for t in row
                             if isinstance(t, dict) and t.get("animal"))
             # size the crew to the herd, but always leave >=6 units on crops
-            n_crew = min(4, max(0, n_units - 6), 1 + max(n_animals, len(reserved)) // 5)
+            crew_basis = n_animals if ENABLE_R3_CREW_FIX else max(n_animals, len(reserved))
+            n_crew = min(4, max(0, n_units - 6), 1 + crew_basis // 5)
             if n_crew > 0:
                 crew_idx = list(range(n_units - n_crew, n_units))   # the last hands
                 positions = [tuple(me["farmer"])] + [tuple(p) for p in me.get("hands", [])]
