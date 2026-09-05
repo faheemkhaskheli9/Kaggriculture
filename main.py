@@ -420,6 +420,20 @@ HERDBATCH_DISCOUNT = 0.6
 HERDBATCH_FEED_DAYS = 2
 HERDBATCH_CASH_FLOOR = 200
 
+ENABLE_MAXHANDS_12 = False
+# MAXHANDS-12 (challenger/ CHALLENGER-1 bisection, 2026-09-06,
+# compete_runs/20260906-01*). ON: cap the dawn HIRE target at 12 hands instead
+# of the current 13 for nq>=3 (day 3-26). The `challenger/` v0 knob bisection
+# isolated this from a herd/quadrant schedule: 64 paired vs main.py it read
+# +13.3% score delta, 90% CI [+6.2%, +20.3%], beat the incumbent 10/7/1 h2h,
+# +4.5k mean margin, only -91 productive actions -- the 13th hand's fib hire
+# cost + tile-contention isn't paid back. CAVEAT: 100% of that signal was in
+# the main self-play bucket (bot_animalfactory_v2/top10clone/wheatflood all
+# flat at +0.0%), the same "self-play-only" pattern the repo's history says
+# routinely evaporates on the ladder -- so this is a ladder-slot candidate, not
+# a local promote. OFF (default) keeps the derived {1:7,2:10,nq>=3:13} ramp.
+MAXHANDS_12_CAP = 12
+
 ENABLE_TXCASH_FORECAST = True
 # TXCASH (docs/IMPACT_RANKED_LEADERBOARD_PLAN.md E2 candidate #1: "transactional
 # cash forecast including same-turn sales"). ON: the top-3 highest-value SELL
@@ -1332,6 +1346,8 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
         else:
             desired = 0
         desired = min(desired, intent["max_hands"])
+        if ENABLE_MAXHANDS_12:
+            desired = min(desired, MAXHANDS_12_CAP)
         for _ in range(max(0, desired - int(me.get("hires_today", 0)))):
             hires.append(["HIRE"])
 
