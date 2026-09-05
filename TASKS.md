@@ -1,5 +1,22 @@
 # TASKS — path to the top of the leaderboard
 
+> **Public-code review — REVOKED, ideas-only going forward (2026-09-05):** an
+> earlier version of this note recommended porting/submitting derivatives of
+> five other named competitors' actual repositories (cloned under
+> `public_agents/`, never committed). **That is against a hard standing rule:
+> never copy another competitor's code, regardless of license — extract ideas
+> only, reimplement independently.** `public_agents/` has been deleted; do not
+> re-clone it or any other competitor's repo. `docs/PUBLIC_CODE_REVIEW_2026-09-05.md`
+> is kept only as a prose summary of the *strategic ideas* worth learning from
+> (precomputed season-length route, closed-loop repair around a fixed plan,
+> opponent-aware market timing, paired-eval discipline) — none of its
+> reported score deltas are usable evidence since they measured someone else's
+> code, not ours. If any of those ideas get built, they must be designed and
+> coded from scratch against this repo's own engine understanding
+> (`knowledge-base/`), gated the normal way (Gate B in
+> `docs/IMPACT_RANKED_LEADERBOARD_PLAN.md`), and logged in `experiments/LEDGER.md`
+> like any other candidate.
+
 > **Current operating plan (2026-09-05):** use
 > `docs/IMPACT_RANKED_LEADERBOARD_PLAN.md`. It supersedes the ordering in this
 > file where they conflict. The next implementation task is E0: paired A/B
@@ -68,8 +85,9 @@ checklist + current pointer, not a re-explanation.
 
 ## 0. Snapshot (update the date whenever you touch this file)
 
-- **Last updated:** 2026-09-05 (later — 1b resolved flat/keep, `main_v12_flat.py` re-validated and ready for the next slot, 1d root-caused with a Gate-B-passing candidate not yet submitted; later still — Workstream A land/animal rule-mining complete, see below)
-- **Next submission slot: `main_v12_flat.py` (item 1c, routing).** Ready now — 0 mismatches, 95.0% local score-rate. The slot *after* that: fold `experiments/probe_e3_animalreserve.py`'s one-line fix (item 1d) onto whatever `main.py` is current post-routing, re-gate, submit. Do not bundle the two into one submission.
+- **Last updated:** 2026-09-05 (later — 1b resolved flat/keep, `main_v12_flat.py` re-validated and ready for the next slot, 1d root-caused with a Gate-B-passing candidate not yet submitted; later still — Workstream A land/animal rule-mining complete; later still — **1c submitted**; later still — **E3 (1d) folded onto `main.py` as `ENABLE_E3_ANIMAL_RESERVE`, re-gated with a weaker/ambiguous result — see below, don't cite the original +5.0% number anymore**; later still — **1e (HERDBATCH) folded onto `main.py`, re-gated NEGATIVE, default set `False`, not submitted**)
+- **1c submitted (2026-09-05 09:45, sub `56029879`, `main_v12_flat.py`, PENDING).** Routing fix (Hungarian-assignment executor), re-validated same-day against current `main.py` post-Lever2: 0/719 action mismatches, 95.0% local score-rate. This evicts one of the 2 tracked slots — the pair to compare after 20+ episodes is `56029879` vs `56023304` (P4b+cropflip, currently 527.3). **Checked this session: only 2 episodes accrued (1 validation + 1 public, publicScore 501.5) — far short of the 20+ needed; do not read anything into 501.5 yet.** Do not submit anything else today.
+- **E3 (item 1d) folded onto `main.py` itself (2026-09-05, this session): `ENABLE_E3_ANIMAL_RESERVE` (default `True`) + `E3_OFF_FIXED_MARGIN=300`**, following the standing per-hunk toggle convention. Self-test (E3-OFF copy vs pinned pre-edit `main.py`, 20 pairs) confirmed the toggle mechanism is an exact +0.0%/+$0 no-op. **The real gate on the current lineage (100 pairs, full pool incl. the 4 new archetype bots) reads much weaker than the original probe: +3.0% score delta, 90% CI [+0.0%,+7.0%] (touches zero), margin delta NEGATIVE (-2943), one regression in the closest lineage self-play (`main_v14`, 0/3/1).** Every real hard-bot archetype (animalfactory_v2/wheatflood/premium/animalfarm) now reads 0% score delta with negative margin. Kept ON by default (still net-positive direction, a logically real accounting-bug fix, and per `CLAUDE.md` local can't reliably gate economy changes either way) but **no longer citable as a clean Gate-B pass** — cite `experiments/LEDGER.md`'s new "E3 folded onto main.py + re-gated" row, not the original +5.0%/CI[+1.7,+10.0] read. Next submission slot (once the one-per-day window resets) still goes to `main.py` with this fix included per the existing queue order — flag the weaker re-gate to the user before that submission.
 - **Explicit goal as of 2026-09-05: rank ≤10 (~2850-3010 rating), not "any improvement."** The §1 queue below (one hand-tuned constant per submission, ~2-3 day ladder-gated read, ~15-20 reads left before deadline) cannot reach that bar even in principle — see `docs/PLAN_TOP10.md`'s "Why" section for the math. §1 items still get done (they're free/queued), but the three levers in `PLAN_TOP10.md` (top-10-caliber local opponent from `top10_ladder/` replays, computed marginal-value estimator replacing hardcoded priority constants, routing fix as the execution substrate) are now the actual priority. Start there, not at 1d.
 - **Lever 1 status (tuned this session, `ecd1d03`→`479829e`):** `bots/bot_top10clone.py` built from real `tools/analyze_top.py` numbers (permanent 3-quadrant land cap, STRAWBERRY-primary day-ramped crop mix, 10-head COW/SHEEP-heavy herd) and fixed through two real bugs (v1: holding the day-20 58/40 split from turn 0 starved early cash, 20-0 loss; v2: a 15-head herd outran the crew's feed capacity, escape/rebuy cash-burn cycle). Then ran a proper 15-game-per-variant comparison against `main.py` specifically (not just a neutral opponent): current config (opp final money ~9.9k mean) beat both a bigger 15-head herd (~4.1k) and a simplified 2-crop/faster-land variant (~6.7k), so those were reverted. **Verdict: still the weaker of the two archetypes against `main.py`** — `bot_animalfactory_v2` reads ~19.0k opp money on the same protocol — even though `bot_top10clone` wins a neutral head-to-head against `bot_animalfactory_v2` 5/8 (15.2k vs 11.4k mean money). Read as an intransitivity: `main.py`'s own strawberry-heavy mix (post P4b+cropflip) directly competes with `bot_top10clone`'s for the same premium-price ceiling in a way it doesn't with animalfactory's wheat-heavy one. Likely the generic `_kagri_botlib` engine's real ceiling for a strawberry-heavy field (more per-tile watering upkeep than wheat), not a remaining tuning problem — further local knob-turning on this bot is now lower-priority than starting Lever 2 itself. Keep it in the pool as a second distinct hard archetype. Re-run `tools/analyze_top.py` + re-derive (don't hand-tune further) if `top10_ladder/` gets refreshed.
 - **Lever 3 status:** `main_v12_flat.py` was validated against `main.py` @ `be12348` earlier this session — **now stale**, since `main.py` has since moved to Lever 2 (`a146a5e`). Re-run `tools/flatten_v12.py` + `tools/validate_flatten.py` against the current `main.py` before submitting item 1c.
@@ -106,20 +124,19 @@ promote/revert by **win-rate**, not coin margin.
       `56023304` 48% vs 30 eps `56016363` 50% — flat, keep `56023304`, no
       rollback. animal_factory win-rate ~20-23% on both — the dominant loss
       cluster is untouched by this constant-level change (see §0 note).
-- [ ] **1c. Submit `main_v12_flat.py` (routing fix) — re-validated 2026-09-05,
-      ready for the next submission slot.** Was stale (generated 08:48, before
-      Lever 2 landed at 10:35); regenerated via `tools/flatten_v12.py` against
-      current `main.py` (post Lever 2, `bb73e7b`) and re-checked:
-      `tools/validate_flatten.py` → 0/719 action mismatches, Kaggle's
-      `get_last_callable` resolves `agent` correctly; `compete.py --games 60`
-      → 95.0% score-rate, 56W-2T-2L, 0 crashes/errors, +3497 mean margin vs
-      `main_v14` (current lineage) specifically. This is the Hungarian-
-      assignment executor whose earlier ladder score (123.2) was root-caused
-      as a packaging bug, not a real regression (`023aadb`) — last unresolved
-      item from `docs/TOP10_TEARDOWN.md` (movement 60% ours vs 47–48%
-      top-10). **Action: submit as the next slot**, then ladder-gate it the
-      same way as 1b (20+ eps, compare score-rate + animal_factory row vs
-      `56023304`).
+- [x] **1c. Submit `main_v12_flat.py` (routing fix) — submitted 2026-09-05
+      09:45, sub `56029879`, PENDING.** Re-validated same-day against current
+      `main.py` (post Lever 2, `bb73e7b`): `tools/validate_flatten.py` →
+      0/719 action mismatches, Kaggle's `get_last_callable` resolves `agent`
+      correctly; `compete.py --games 60` → 95.0% score-rate, 56W-2T-2L, 0
+      crashes/errors, +3497 mean margin vs `main_v14` (current lineage)
+      specifically. This is the Hungarian-assignment executor whose earlier
+      ladder score (123.2) was root-caused as a packaging bug, not a real
+      regression (`023aadb`) — last unresolved item from
+      `docs/TOP10_TEARDOWN.md` (movement 60% ours vs 47–48% top-10). **Next:
+      wait 20+ episodes**, `download_episodes.py` + `tools/ladder_analyze.py
+      56029879`, compare score-rate + animal_factory row vs `56023304`
+      (527.3) per the 1b decision rule (keep if flat-or-better).
 - [x] **1d. Root-cause the day-2 lead-flip / cash-crater pattern — resolved
       2026-09-05.** Built `tools/trace_cashflow.py` and traced the 8 worst
       real ladder `animal_factory` losses (both tracked subs). Identical
@@ -136,15 +153,28 @@ promote/revert by **win-rate**, not coin margin.
       (**+5.0% score delta, 90% CI [+1.7%,+10.0%], 0 regressions**, day10
       cash +40); the dedicated `bot_animalfactory_v2` read is uninformative
       (both go 100%, bot is saturated/too weak to discriminate — same gap as
-      Lever 2). Full writeup: `experiments/LEDGER.md`'s "E3 animal-reserve"
-      row. **Not yet on `main.py`** — queue for the submission slot *after*
-      1c per `docs/PLAN_TOP10.md` sequencing (one change per slot, don't
-      bundle with routing).
-- [ ] **1e. Submit `main_herdbatch.py`'s F1 herd-match** (dawn herd BATCH
-      bootstrap, gated on a visible animal opponent) — local-clean vs v10
-      (`bot_animalfarm` 2-0-8 → 9-0-1, other rows byte-identical), targets
-      `animal_factory` (~56% of the ladder pool). Fold onto whatever `main.py`
-      is current at that point rather than submitting the standalone file.
+      Lever 2). **Folded onto `main.py` itself (2026-09-05) as
+      `ENABLE_E3_ANIMAL_RESERVE` (default `True`).** Re-gated on the current
+      full lineage (100 pairs, pool now includes 4 new archetype bots):
+      **weaker result — +3.0% score delta, CI [+0.0%,+7.0%] touches zero,
+      margin delta NEGATIVE (-2943), one `main_v14` self-play regression.**
+      Kept ON (still net-positive, logically a real fix) but no longer a
+      clean local Gate-B pass — see `experiments/LEDGER.md`'s "E3 folded onto
+      main.py + re-gated" row. Queue for the submission slot *after* 1c per
+      `docs/PLAN_TOP10.md` sequencing (one change per slot, don't bundle with
+      routing) — flag the weaker re-gate before that submission.
+- [x] **1e. Fold `main_herdbatch.py`'s herd-batch bootstrap onto `main.py` —
+      done, REJECTED (2026-09-05).** Added as `ENABLE_HERDBATCH` (toggle,
+      default `False`). Re-gated on the current lineage: targeted read vs
+      `bot_animalfactory_v2` still uninformative (60-0-0 both sides, +0.0%);
+      diverse pool (100 pairs) came back **net negative** — score delta
+      -3.0%, CI [-7.0%,+1.0%], 2/93/5 improved/same/regressed, margin -960,
+      with real regressions in lineage self-play (`main_v12` -57.1%/4 losses,
+      `main_p2` -25%), not weak bots. The original 10-game v10-era read does
+      not reproduce on the current lineage (P3f/Lever2/E3 all postdate it).
+      Toggle left in code at `False` for future re-investigation; not
+      submitted. Full numbers: `experiments/LEDGER.md`'s "HERDBATCH fold +
+      re-gate" row.
 
 After each ladder-gated read: update `experiments/LEDGER.md`'s row for that
 change (ladder score + keep/revert decision) **and** check off / re-rank this

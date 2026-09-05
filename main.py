@@ -243,6 +243,67 @@ ENABLE_FEED_EMERGENCY_FLOOR = True
 # emergency, stays gated on the normal `reserve` (pre-fix behaviour, the one
 # TASKS.md's animal_factory cash-crater root-cause traced back to).
 
+ENABLE_E3_ANIMAL_RESERVE = True
+# E3 (experiments/probe_e3_animalreserve.py, tools/trace_cashflow.py,
+# 2026-09-05). ON: BUY_ANIMAL's affordability check shares the same
+# day-scaled `reserve` the seed budget already respects
+# (`money - reserve >= cost + 150*placed_total`) instead of a private fixed
+# margin. The 8 worst real-ladder animal_factory losses (both tracked subs)
+# all show the same pattern: the OFF gate's own margin (cost+300+150*placed)
+# never shared a budget with `reserve`, so day-0 seed spend ($1030-1220) and
+# animal spend ($1600, 4 buys) landed simultaneously and crushed cash to
+# $150-350 for two weeks while the opponent reached $60-102k by day 29.
+# Gated (compete.py --baseline main.py, diverse pool): +5.0% score delta, 90%
+# CI [+1.7%,+10.0%], 0 regressions, day10 cash +40 (the dedicated
+# bot_animalfactory_v2 read is uninformative -- both go 100%, the bot is too
+# weak to discriminate). OFF restores the pre-fix private-margin gate
+# (`money >= cost + 300 + 150*placed_total`).
+E3_OFF_FIXED_MARGIN = 300
+
+ENABLE_HERDBATCH = False
+# HERDBATCH (main_herdbatch.py, PLAN_TO_3000 Phase 2; TASKS.md item 1e). ON:
+# once the opponent is visibly running a herd (>=1 placed animal or >=2
+# COOP/PASTURE structures -- a crop-only opponent never builds either, and
+# this fires as early as day 2-4, before our own poverty trap sets in),
+# replace the one-animal-per-turn purchase loop with a batch buy: forecast
+# this turn's top-3 SELL proceeds (they clear before buys_hi in the assembled
+# order) at a 0.6 discount, hold back `reserve` + 2 days of feed wheat + a
+# $200 floor, cap the shed backlog to what the animal crew can place in about
+# a day (4 + 2*crew_est), and buy the whole affordable deficit per species
+# (COW/GOOSE before SHEEP, animal_targets' own dict order) in one order line
+# instead of one animal. The old per-turn loop left us at 4-6 head on day 20
+# against a factory opponent compounding to 12-15 in the original 10-game
+# local A/B (v10 base, before Lever2/E3 existed): bot_animalfarm 2-8->9-1,
+# bot_animalfactory_v2 unchanged at 4-6, overall 43-17->50-10, 0 err.
+# **Re-gated on the current lineage (2026-09-05) and REJECTED, default set to
+# False**: bot_animalfactory_v2 remains saturated/uninformative (60-0-0 both
+# sides), and the 100-pair diverse-pool read came back net-negative -- score
+# delta -3.0%, 90% CI [-7.0%,+1.0%], 2 improved/93 same/5 regressed, margin
+# -960, with real damage concentrated in lineage self-play (main_v12 -57.1%
+# = 4 regressions of 7, main_p2 -25%), not weak bots. Full numbers:
+# experiments/LEDGER.md's "HERDBATCH re-gate" row. Flip True only to
+# re-investigate; do not submit at True without a new passing gate.
+HERDBATCH_DISCOUNT = 0.6
+HERDBATCH_FEED_DAYS = 2
+HERDBATCH_CASH_FLOOR = 200
+
+ENABLE_TXCASH_FORECAST = True
+# TXCASH (docs/IMPACT_RANKED_LEADERBOARD_PLAN.md E2 candidate #1: "transactional
+# cash forecast including same-turn sales"). ON: the top-3 highest-value SELL
+# orders are always assembled ahead of buys_hi/buys_lo in the final order list
+# (see the `out = ...` assembly below) and this env processes orders
+# sequentially within a turn, so their proceeds are real cash by the time a
+# land/animal/seed gate downstream evaluates `money` -- yet every affordability
+# check up to now used the pre-sale `money` from the observation, understating
+# what is actually spendable this turn and delaying otherwise-affordable buys
+# by a day. Credit `top3_sell_value` to `money` once, right after it's
+# computed, so every gate below (land/animal/seed) sees the same corrected
+# figure -- no per-gate special-casing, unlike HERDBATCH's one-off `fcash`.
+# Deliberately NOT bundled with HERDBATCH's batching logic (rejected on
+# re-gate, see that toggle's comment) -- this is E2 candidate #1 tested in
+# isolation, per the plan's explicit "test exactly one mechanism at a time"
+# rule. OFF restores the pre-fix behaviour (every gate uses raw `money`).
+
 
 def _shape(func, x, T):
     x = max(0.0, x)
@@ -1118,7 +1179,10 @@ def market_orders(obs, me, private, counts, n_units):
         if amount > 0:
             sells.append((p0 * amount, ["SELL", item, amount]))
     sells.sort(key=lambda s: -s[0])         # highest-value produce first
+    top3_sell_value = sum(v for v, _ in sells[:3])   # proceeds available to buys_hi
     sells = [s[1] for s in sells]
+    if ENABLE_TXCASH_FORECAST:
+        money += top3_sell_value
 
     # ---- land: quadrants 2 & 3 as soon as the current fill and cash allow;
     # quadrant 4 ($4k) later and only when genuinely rich, since it is only worth
@@ -1181,13 +1245,44 @@ def market_orders(obs, me, private, counts, n_units):
         placed_total = sum(have.values())
         pending = int(sum(v for k, v in shed.items() if k in ANIMALS))
         if hour <= 6:
-            for a, want in animal_targets(obs, me).items():
-                cur = have[a] + int(shed.get(a, 0))
-                # buy one per turn; keep enough cash for the season's running costs
-                if cur < want and money >= ANIMALS[a][0] + 300 + 150 * placed_total:
-                    buys_hi.append(["BUY_ANIMAL", a, 1])
-                    money -= ANIMALS[a][0]
-                    break
+            tgt = animal_targets(obs, me)
+            opp_farm_tiles = obs["farms"][1 - obs.get("player", 0)].get("tiles", [])
+            opp_an = sum(1 for row in opp_farm_tiles for t in row
+                         if isinstance(t, dict) and t.get("animal"))
+            opp_structs = sum(1 for row in opp_farm_tiles for t in row
+                               if isinstance(t, dict) and t.get("kind") in ("COOP", "PASTURE"))
+            if ENABLE_HERDBATCH and (opp_an >= 1 or opp_structs >= 2):
+                crew_est = min(4, max(0, n_units - 6))
+                backlog_cap = 4 + 2 * crew_est
+                wp_feed = max(1, price_at("WHEAT", mkt_inv.get("WHEAT", 10000)))
+                # money already carries top3_sell_value if TXCASH is ON --
+                # don't add it twice.
+                fcash = money if ENABLE_TXCASH_FORECAST else \
+                    money + HERDBATCH_DISCOUNT * top3_sell_value
+                feed_2d = HERDBATCH_FEED_DAYS * sum(tgt.values()) * wp_feed
+                for a, want in tgt.items():
+                    cost = ANIMALS[a][0]
+                    deficit = want - (have[a] + int(shed.get(a, 0)))
+                    room = backlog_cap - pending
+                    affordable = int(max(0.0, fcash - reserve - feed_2d - HERDBATCH_CASH_FLOOR) // cost)
+                    n = max(0, min(deficit, room, affordable))
+                    if n > 0:
+                        buys_hi.append(["BUY_ANIMAL", a, n])
+                        money -= n * cost
+                        fcash -= n * cost
+                        pending += n
+            else:
+                for a, want in tgt.items():
+                    cur = have[a] + int(shed.get(a, 0))
+                    # buy one per turn; keep enough cash for the season's running costs
+                    if ENABLE_E3_ANIMAL_RESERVE:
+                        afford = money - reserve >= ANIMALS[a][0] + 150 * placed_total
+                    else:
+                        afford = money >= ANIMALS[a][0] + E3_OFF_FIXED_MARGIN + 150 * placed_total
+                    if cur < want and afford:
+                        buys_hi.append(["BUY_ANIMAL", a, 1])
+                        money -= ANIMALS[a][0]
+                        break
         if (placed_total or pending) and hour <= 4:
             need_w = 2 * (placed_total + pending) + 4
             have_w = int(shed.get("WHEAT", 0))
