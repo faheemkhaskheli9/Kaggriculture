@@ -54,6 +54,13 @@ def _crop_mix(day):
     # stable, hard-to-beat opponent, which is the actual point of this bot
     # (see docs/PLAN_TOP10.md Lever 1) -- exact tile-mix fidelity is
     # secondary to "does it actually play like a strong economy."
+    # Tried dropping the real mix's TOMATO/MELON/CARROT slivers (1.3/0.7/
+    # 0.1% of tiles) and tightening the land gate to animalfactory_v2's pace
+    # (day5/fill0.40) in the same pass -- both regressed the read against
+    # main.py specifically (opp final money ~6.7k vs this config's ~9.9k
+    # over 15 games each), so reverted both. Keep the slivers; they're
+    # cheap and match the real mix, whatever inefficiency they cost isn't
+    # what's limiting this bot against main.py.
     if day < 8:
         return {"WHEAT": 0.85, "STRAWBERRY": 0.15}
     if day < 16:
@@ -78,11 +85,16 @@ agent = make_agent({
         5 if day < 3 else (11 if day < 27 else (9 if day < 29 else 0))),
     # --- crops: wheat-first for cash flow, converging to the real day-20 mix ---
     "crops": _crop_mix,
-    # --- herd: moderate + COW/SHEEP-roughly-even (real ratio), sized so an
-    # ~11-hand crew can actually keep every head fed every day -- the
-    # original 15-head (COW7/SHEEP7/GOOSE1) target caused a feed-neglect ->
-    # escape -> rebuy cycle that burned cash for nothing (see _crop_mix
-    # docstring). One buy/turn, not two, for the same reason.
+    # --- herd: 10 head, COW/SHEEP-roughly-even, GOOSE a sliver. Tried both
+    # smaller (this) and the real ~15-head scale head-to-head against
+    # main.py specifically (not just a soft/neutral opponent): the 15-head
+    # config actually did *worse* here (opp final money ~4.1k vs this
+    # config's ~9.9k over 15 games) even though it wins more often in a
+    # neutral top10clone-vs-animalfactory_v2 match -- against a crew this
+    # size (~11 hands) contesting a strong opponent for the same board, a
+    # bigger herd is more feed-logistics load than it's worth. Keep it
+    # smaller here; revisit once Lever 2's crew is actually big/efficient
+    # enough to carry more animals. One buy/turn avoids an overshoot spike.
     "animals": {"COW": 5, "SHEEP": 4, "GOOSE": 1},
     "animals_per_turn": 1,
     "animal_buffer_base": 250,
