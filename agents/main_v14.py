@@ -1,13 +1,38 @@
-"""Kaggriculture v14 (promoted, NOT submitted): v11 + P4b/cropflip (be12348) +
-Lever 2 (a146a5e/c9ab4ff). Full version history/rationale: agents/main_v14.py
-(this file's frozen snapshot) and experiments/LEDGER.md's "Lever 2" row.
-Lever 2 summary: docs/PLAN_TOP10.md's computed marginal-value estimator --
-`_crop_tile_value()` (real engine growth constants + price_at) drives
-choose_crops' day>=7 crop picks and the quadrant-4 land-buy ROI gate,
-replacing hand-tuned shares/thresholds. Bug-check clean (95.0%/0 err, ~230
-games) but targeted hard-bot reads (bot_top10clone, bot_animalfactory_v2)
-show no measurable local gain over baseline -- verdict needs a real ladder
-read. Not submitted as of 2026-09-05 (see TASKS.md).
+"""Kaggriculture v14: v11 + P4b/cropflip (be12348) + Lever 2 (a146a5e/c9ab4ff).
+Snapshot of the promoted main.py as of 2026-09-05, docs/PLAN_TOP10.md's
+computed-value pivot. NOT submitted to Kaggle (only main.py itself is ever
+submitted) -- this is the lineage/rollback snapshot and a compete.py pool
+opponent, per CLAUDE.md's "Agent lineage" section.
+
+Lever 2 (docs/PLAN_TOP10.md) -- computed marginal-value estimator, replacing
+two of the hand-tuned constants TOP10_TEARDOWN kept needing a fresh replay
+teardown to re-derive:
+  * `_crop_tile_value()` -- expected $/tile/remaining-season-day for a crop,
+    from the real engine growth constants (MAX_YIELD/INTERVAL, the actual
+    kaggle_environments CROPS table -- not guessed) and the existing
+    `price_at()` curve. Returns <=0 to mean "don't plant this."
+  * `choose_crops()` (day>=7 path) now picks by computed value each slot,
+    discounting *projected* market inventory as picks accumulate (a real
+    market-clearing step) instead of a fixed hand-set share. The day<7
+    liquidity-bootstrap branch is untouched on purpose -- that's a cash-flow
+    *timing* concern the value calc doesn't model.
+  * The quadrant-4 land-buy gate is now computed ROI (crew capacity vs.
+    coverage_cap, expected_revenue >= cost*1.5) instead of the old
+    `n_units >= 18` threshold -- which was hand-picked to be unreachable,
+    not derived. Self-consistent with add_plant_tasks' own coverage_cap
+    formula.
+
+Verdict (2026-09-05, see experiments/LEDGER.md "Lever 2" row): bug-check
+clean -- 95.0% score-rate / 0 errors across ~230 compete.py games on the full
+diverse pool, land cap correctly self-limits to 3 quadrants every game
+(TOP10_TEARDOWN Finding 1 now falls out of the math). BUT the two targeted
+hard-bot reads that actually matter (bots/bot_top10clone.py,
+bots/bot_animalfactory_v2.py, 35 games each) showed NO measurable
+improvement over the pre-Lever2 baseline -- both within noise. Structurally
+better (computed, should generalize as the meta shifts) but locally
+unproven; per CLAUDE.md's Benchmarking notes, an economy-shape change like
+this can only be judged by a real ladder read, not more local probing. Not
+submitted -- ladder verdict pending.
 
 --- v11 (parent): agents/main_v10.py + 3 stacked, independently-revertible hunks.
 
@@ -56,7 +81,8 @@ cap, already committed):
   P4 -- stop planting tiles we cannot farm: gate the Q4 ($4k) land unlock on
         crew >= 12, cap total plants at crop_units*8 in add_plant_tasks, and
         clear late weeds (day>=18) at 2500 -- still below comfort-water 2600.
-Rollback chain: v10 -> (v10 - P4) -> (P1 only) -> agents/main_v7.py.
+Rollback chain: v14 -> (drop Lever 2, keep P4b/cropflip) -> v10 -> (v10 - P4)
+-> (P1 only) -> agents/main_v7.py.
 
 --- v7 (parent): v5 + A3 field-fill (PLAN_V6.md Track A). PROMOTED.
 
