@@ -11,6 +11,15 @@ A single-agent entry for the **Kaggriculture** Kaggle Simulations competition �
 Goal: end the season with more coins than the opponent. Reward is
 `farm["money"]` only; the coin margin never affects rating, just win/loss/tie.
 
+## Task list — read first, keep updated
+
+`TASKS.md` (repo root) is the canonical, living checklist toward the top of
+the leaderboard: current submission-slot state, the ranked submission queue,
+the standing one-change-per-slot loop, and what's explicitly shelved. Check
+it at the start of every session and **update it in the same sitting** as any
+action it lists (submission made, ladder read back, item reprioritized) —
+don't let it go stale the way `experiments/LEDGER.md`'s narrative once did.
+
 ## Knowledge base — read first
 
 `knowledge-base/` is the consolidated reference for this game: rules, exact
