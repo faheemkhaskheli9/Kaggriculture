@@ -128,6 +128,7 @@ in the run directory.
 | `--baseline-edge` | 0.0 | required score margin over `main.py` |
 | `--max-iters` | 15 | iteration cap |
 | `--max-hours` | 12 | wall-clock cap |
+| `--max-cost-usd` | none | stop once the claude driver's accumulated `total_cost_usd` (from its own JSON output) reaches this; openai-fallback spend has no hardcoded pricing table so it's tracked in tokens only and doesn't count here |
 | `--patience` | 5 | stop after N iters with no new best (delayed one round if `--reseed-pool` fires first) |
 | `--regress-tol` | 0.02 | restore `best.py` as the fix base when the candidate's overall score drifts this far below best's; also the verify slack |
 | `--pick-seed` | 20260904 | fixed selection seed, now reserved for the baseline + fresh-seed verification (held-out; search no longer uses it directly) |
@@ -166,8 +167,15 @@ than misreading the old 2-tuple (`best.py` on disk is untouched either way).
 ## Guardrails / caveats
 
 - **Don't edit the repo while a run is live** — the stray-edit guard restores any
-  tracked file the fixer changed (including files you had uncommitted) from its
-  pre-fix backup, and deletes new untracked files outside the run dir.
+  tracked file the fixer changed: from its pre-fix backup if it was already
+  dirty when the iteration started, otherwise via `git checkout` from HEAD (a
+  clean tracked file the fixer touched used to be deleted outright instead of
+  restored — fixed). Genuinely new/untracked files outside the run dir are
+  deleted.
+- Stdout/telemetry now report driver spend per call and a running total
+  (`$X.XX` for the claude driver's own reported cost, `+N tokens` for the
+  openai fallback, which has no hardcoded pricing table); `--max-cost-usd`
+  can stop the run once the claude side crosses a budget.
 - The loop **seeds from the current working-tree `main.py`**. If that file is a
   broken WIP, the loop starts from broken. Check `git diff main.py` first, or
   point `--seed-from` at a known-good snapshot (`agents/main_v10.py`).

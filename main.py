@@ -208,10 +208,6 @@ STRATEGY_CONFIG = {
         "FEED_STOCK_DAYS": 2,
         "FINGERPRINT_DAY": 5,
         "HERD_CAP_BY_QUADRANTS": {1: 3, 2: 8, 3: 13, 4: 13},
-        # The market-aware mix can select more daily-producing geese than the
-        # incumbent fixed mix. Reserve one crew member per four herd tiles so
-        # a full 13-head herd gets four carers instead of three.
-        "ANIMALS_PER_CREW": 4,
         "CROWDING_WEIGHT": 0.35,
         "SHOP_DEMAND_WEIGHT": 0.45,
         "PRICE_MOMENTUM_WEIGHT": 0.20,
@@ -799,22 +795,6 @@ def animal_crew_actions(obs, me, private, reserved, crew_idx, positions, invs):
             if tgt != pos:
                 out[idx] = step_toward(pos, tgt)
     return out
-
-
-def animal_crew_size(intent, n_units, n_animals, n_reserved):
-    """Size the dedicated herd crew without changing the shared executor.
-
-    Adaptive and livestock modes retain the incumbent rule exactly. ANTI_META
-    can independently reserve more service capacity for its dynamic species
-    mix, while still leaving at least six units available for crops.
-    """
-    herd_tiles = max(n_animals, n_reserved)
-    if intent["mode"] == "ANTI_META":
-        animals_per_crew = max(1, int(intent["config"]["ANIMALS_PER_CREW"]))
-        wanted = max(1, (herd_tiles + animals_per_crew - 1) // animals_per_crew)
-    else:
-        wanted = 1 + herd_tiles // 5
-    return min(4, max(0, n_units - 6), wanted)
 
 
 def choose_crops(obs, me, private, counts, plant_slots, intent=None):
@@ -1575,7 +1555,7 @@ def _run_strategy(obs, intent):
             n_animals = sum(1 for row in me["tiles"] for t in row
                             if isinstance(t, dict) and t.get("animal"))
             # size the crew to the herd, but always leave >=6 units on crops
-            n_crew = animal_crew_size(intent, n_units, n_animals, len(reserved))
+            n_crew = min(4, max(0, n_units - 6), 1 + max(n_animals, len(reserved)) // 5)
             if n_crew > 0:
                 crew_idx = list(range(n_units - n_crew, n_units))   # the last hands
                 positions = [tuple(me["farmer"])] + [tuple(p) for p in me.get("hands", [])]

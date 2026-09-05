@@ -1012,11 +1012,13 @@ def main():
                     it += 1
                     state.update(iter=it, driver=driver_name, best_key=list(best_score),
                                  best_metrics=best_metrics, last_best_iter=last_best_iter,
-                                 reseed_tried=reseed_tried, elapsed_s=time.time() - t_start)
+                                 reseed_tried=reseed_tried, elapsed_s=time.time() - t_start,
+                                 cost_usd_total=cost_usd_total, tokens_total=tokens_total)
                     save_state(run_dir, state)
                     continue
                 print(f"  {driver.name} still usage-limited after {retry_i} retries and no "
                       "usable fallback -- stopping")
+                state.update(cost_usd_total=cost_usd_total, tokens_total=tokens_total)
                 break
 
             sane, why = candidate_sane(args.python)
@@ -1034,6 +1036,7 @@ def main():
             state.update(iter=it, driver=driver_name, best_key=list(best_score),
                          best_metrics=best_metrics, last_best_iter=last_best_iter,
                          reseed_tried=reseed_tried, elapsed_s=time.time() - t_start,
+                         cost_usd_total=cost_usd_total, tokens_total=tokens_total,
                          baseline=base)
             save_state(run_dir, state)
 
@@ -1059,8 +1062,14 @@ def main():
             else:
                 print(f"\nbest snapshot: {best_py}")
             print(f"to promote:    cp {best_py} main_auto.py   # then A/B vs main.py yourself")
+        cost_line = f"total driver cost: ${cost_usd_total:.2f}"
+        if tokens_total:
+            cost_line += f" (claude) + {tokens_total} tokens (openai fallback)"
+        print(cost_line)
         state.setdefault("outcome", "stopped")
         state["elapsed_s"] = time.time() - t_start
+        state["cost_usd_total"] = cost_usd_total
+        state["tokens_total"] = tokens_total
         save_state(run_dir, state)
     finally:
         lock.unlink(missing_ok=True)

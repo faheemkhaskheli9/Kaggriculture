@@ -117,17 +117,6 @@ class AntiMetaPolicyTests(unittest.TestCase):
         crowded = main.animal_targets(obs, obs["farms"][0], self.intent)
         self.assertLess(crowded.get("COW", 0), uncrowded.get("COW", 0))
 
-    def test_full_herd_gets_four_service_crew(self):
-        self.assertEqual(4, main.animal_crew_size(self.intent, 14, 13, 13))
-
-    def test_service_crew_still_leaves_six_crop_units(self):
-        self.assertEqual(2, main.animal_crew_size(self.intent, 8, 13, 13))
-
-    def test_adaptive_crew_rule_is_unchanged(self):
-        adaptive = main.strategy_intent("ADAPTIVE_ECONOMY")
-        self.assertEqual(3, main.animal_crew_size(adaptive, 14, 13, 13))
-
-
 class DispatcherSafetyTests(unittest.TestCase):
     def test_default_dispatch_matches_explicit_adaptive_entry(self):
         obs = observation()

@@ -85,6 +85,17 @@ checklist + current pointer, not a re-explanation.
 
 ## 0. Snapshot (update the date whenever you touch this file)
 
+- **E2 anti-meta service-crew iteration rejected (2026-09-05):** tested one
+  isolated maintenance change: at the full 13-head herd, reserve four animal
+  hands instead of three (`ceil(herd/4)`, still leaving six crop units). On the
+  identical 40-pair adversarial-v1 tuples (`--pick-seed 260906`), score delta
+  fell from the selector's prior +8.8% to **+3.8%**, 90% CI
+  **[-2.5%, +11.2%]**, I/S/R **3/36/1**. It created an external regression
+  against animalfactory (**-6.2%, 0/15/1**), margin worsened -$4,565,
+  productive actions fell another 100.3, and escapes stayed +0.1/game rather
+  than improving. Reverted fully. The next anti-meta maintenance attempt must
+  improve task prioritization or feed logistics without removing another crop
+  worker; do not retry a larger fixed crew.
 - **E2 market-aware herd selector implemented opt-in (2026-09-05):** enabled
   `ANTI_META` as an executable mode with the incumbent's same land, labor, and
   feed limits; only animal species targets/order change after day 5. New herd
