@@ -85,6 +85,82 @@ checklist + current pointer, not a re-explanation.
 
 ## 0. Snapshot (update the date whenever you touch this file)
 
+- **E2 market-aware herd selector implemented opt-in (2026-09-05):** enabled
+  `ANTI_META` as an executable mode with the incumbent's same land, labor, and
+  feed limits; only animal species targets/order change after day 5. New herd
+  slots score live MILK/WOOL/EGG value, town demand, remaining production time,
+  animal cost, and visible own+opponent species crowding. The identical 40-pair
+  adversarial-v1 screen (`--pick-seed 260906`) produced **+8.8% score delta**,
+  90% CI **[+2.5%, +16.2%]**, I/S/R **4/36/0**, but all four flips were in the
+  `main` self-play bucket (+87.5%); every external archetype stayed +0.0%.
+  Overall margin fell -$2,892, including animalfactory -$5,413 and wheatflood
+  -$12,604, and escapes worsened slightly by +0.1/game. Keep the mode and its
+  parameters available for further A/B work, but do not promote it as the
+  default until it flips external games without a maintenance regression.
+  All 13 strategy invariants, compilation, and diff checks pass.
+- **Livestock wheat-target iteration retained opt-in (2026-09-05):** isolated
+  `LIVESTOCK_ENGINE.WHEAT_TILES` from 10 to 14, leaving herd, land, labor,
+  routing, and the 16-strawberry target unchanged. On the identical 40-pair
+  adversarial-v1 tuples (`--pick-seed 260906`), score delta improved from the
+  staged-herd result's +3.8% to **+6.2%**, I/S/R **3/36/1**, with 90% CI
+  **[+0.0%, +13.8%]**. Mean margin deficit narrowed **-$1,580 -> -$555** and
+  productive-action deficit **-189.5 -> -153.5**; day-10 cash stayed positive
+  at +$502, plant-to-weed was -39.9, and crashes/escapes were zero. All external
+  archetype buckets again had +0.0% score delta; the +62.5% main bucket supplied
+  all score changes. Retain 14 wheat behind the livestock toggle, but do not
+  promote while the interval touches zero and the signal remains self-play-only.
+  All 10 strategy invariants, compilation, and diff checks pass.
+- **Livestock opening-throughput repair retained opt-in (2026-09-05):** root
+  cause was the mode reserving its full 14-animal footprint while only the
+  opening 5x5 quadrant was usable. Added the configurable
+  `HERD_CAP_BY_QUADRANTS={1: 4, 2: 14}` stage: the final 8-COW/6-SHEEP target
+  is unchanged after land 2 opens, but only four cow tiles are reserved before
+  then. On the identical 40-pair adversarial-v1 tuples (`--pick-seed 260906`),
+  livestock improved from the prior +1.2% score delta to **+3.8%**, I/S/R
+  **2/37/1**, while its mean margin deficit shrank **-$18,513 -> -$1,580** and
+  productive-action deficit **-1,094.8 -> -189.5**; day-10 cash remained
+  positive at +$507, plant-to-weed was -37.8, and crashes/escapes stayed zero.
+  The 90% CI still crosses zero `[-1.2%, +10.0%]`, and all external archetype
+  buckets remain +0.0% score delta (changes are only incumbent self-play), so
+  retain this repair behind the livestock toggle but do not promote the mode.
+  All 10 invariant tests, compilation, and diff checks pass. Next optimization
+  should target the remaining crop/action deficit with one isolated parameter
+  or mechanism, then repeat the frozen league.
+- **Strategy invariant suite + first frozen league read (2026-09-05):** added
+  `tests/test_strategy_modes.py` with 10 passing tests covering enabled/disabled
+  resolution, fail-closed dispatch, adaptive/default equivalence, config bounds,
+  and livestock herd/crop targets. A 40-pair frozen adversarial-v1 screen of
+  `LIVESTOCK_ENGINE` vs `main.py` was **inconclusive and economically weak**:
+  score delta +1.2%, 90% CI [-2.5%, +6.2%], I/S/R 1/38/1, margin delta
+  -$18,513, productive actions -1,094.8, with zero crashes/escapes. All four
+  external archetype buckets had exactly +0.0% score delta; the only changes
+  were noisy incumbent self-play. Do not promote or enlarge this run. Next
+  livestock iteration must fix throughput/asset utilization as one attributable
+  change, then repeat this exact held-out protocol.
+- **Strategy-intent + livestock mode implemented (2026-09-05):** the shared
+  executor now receives an explicit resolved intent for herd targets, crop
+  selection, land/hiring ceilings, and feed stock. `LIVESTOCK_ENGINE` is a
+  playable opt-in mode (8 COW / 6 SHEEP, 14 WHEAT / 16 STRAWBERRY, 2 quadrants,
+  11-hand ceiling, 3 feed-days); `experiments/livestock_mode.py` is its thin
+  paired-evaluation entry point. The default `ADAPTIVE_ECONOMY` still matches
+  committed `HEAD:main.py` exactly across all 719 actions and final rewards in
+  a seeded full season. Initial 20-pair animal-factory smoke: both policies
+  20/20 wins, zero crashes/escapes, score delta +0.0%, livestock margin delta
+  -$5,558, day-10 cash +$1,093, 52.9 fewer weeds, but 1,050.5 fewer productive
+  actions. Raising its labor/land ceilings made no difference on the identical
+  tuples, so those speculative changes were reverted. Keep the mode opt-in and
+  do not promote; next improvement should address its low productive-action
+  throughput and then run the frozen weighted league where score-rate can vary.
+- **Strategy-mode foundation added (2026-09-05):** `main.py` now has a
+  centralized `STRATEGY_CONFIG`, a `STRATEGY_MODE` selector, and named config
+  groups for `ADAPTIVE_ECONOMY`, `FRONTIER_SCHEDULE`, `LIVESTOCK_ENGINE`,
+  `ANTI_META`, and `MULTI_ROUTE`. Only `ADAPTIVE_ECONOMY` is enabled/executable;
+  every unavailable/disabled selection fails closed to that incumbent policy.
+  This refactor is behavior-preserving: a 720-turn fixed-seed run against
+  `starter` matched committed `HEAD:main.py` exactly at every returned action,
+  status, and reward (final money $53,388); compile/diff checks and a four-game
+  smoke run also completed with zero crashes/errors. This foundation milestone
+  is now superseded by the strategy-intent/livestock snapshot immediately above.
 - **Last updated:** 2026-09-05 (later — 1b resolved flat/keep, `main_v12_flat.py` re-validated and ready for the next slot, 1d root-caused with a Gate-B-passing candidate not yet submitted; later still — Workstream A land/animal rule-mining complete; later still — **1c submitted**; later still — **E3 (1d) folded onto `main.py` as `ENABLE_E3_ANIMAL_RESERVE`, re-gated with a weaker/ambiguous result — see below, don't cite the original +5.0% number anymore**; later still — **1e (HERDBATCH) folded onto `main.py`, re-gated NEGATIVE, default set `False`, not submitted**)
 - **1c submitted (2026-09-05 09:45, sub `56029879`, `main_v12_flat.py`, PENDING).** Routing fix (Hungarian-assignment executor), re-validated same-day against current `main.py` post-Lever2: 0/719 action mismatches, 95.0% local score-rate. This evicts one of the 2 tracked slots — the pair to compare after 20+ episodes is `56029879` vs `56023304` (P4b+cropflip, currently 527.3). **Checked this session: only 2 episodes accrued (1 validation + 1 public, publicScore 501.5) — far short of the 20+ needed; do not read anything into 501.5 yet.** Do not submit anything else today.
 - **E3 (item 1d) folded onto `main.py` itself (2026-09-05, this session): `ENABLE_E3_ANIMAL_RESERVE` (default `True`) + `E3_OFF_FIXED_MARGIN=300`**, following the standing per-hunk toggle convention. Self-test (E3-OFF copy vs pinned pre-edit `main.py`, 20 pairs) confirmed the toggle mechanism is an exact +0.0%/+$0 no-op. **The real gate on the current lineage (100 pairs, full pool incl. the 4 new archetype bots) reads much weaker than the original probe: +3.0% score delta, 90% CI [+0.0%,+7.0%] (touches zero), margin delta NEGATIVE (-2943), one regression in the closest lineage self-play (`main_v14`, 0/3/1).** Every real hard-bot archetype (animalfactory_v2/wheatflood/premium/animalfarm) now reads 0% score delta with negative margin. Kept ON by default (still net-positive direction, a logically real accounting-bug fix, and per `CLAUDE.md` local can't reliably gate economy changes either way) but **no longer citable as a clean Gate-B pass** — cite `experiments/LEDGER.md`'s new "E3 folded onto main.py + re-gated" row, not the original +5.0%/CI[+1.7,+10.0] read. Next submission slot (once the one-per-day window resets) still goes to `main.py` with this fix included per the existing queue order — flag the weaker re-gate to the user before that submission.

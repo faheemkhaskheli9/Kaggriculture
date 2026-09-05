@@ -142,6 +142,91 @@ SHED_TILES = {(4, 4), (5, 4), (4, 5), (5, 5)}
 SHED_CENTER = (4.5, 4.5)
 PREMIUM = {"STRAWBERRY", "MELON", "MILK", "WOOL"}
 
+# ---------------------------------------------------------------------------
+# High-level strategy selection. Keep this block dependency-free and made of
+# JSON-safe primitives so a promoted strategy can still be flattened into the
+# single-file Kaggle submission. Fine-grained ENABLE_* flags below remain the
+# mechanism for causal ablations within a strategy.
+#
+# ADAPTIVE_ECONOMY remains the default. LIVESTOCK_ENGINE and ANTI_META are
+# executable behind the selector; the remaining parameter groups fail closed
+# until implemented.
+
+STRATEGY_MODE = "ADAPTIVE_ECONOMY"
+SUPPORTED_STRATEGY_MODES = (
+    "ADAPTIVE_ECONOMY",
+    "FRONTIER_SCHEDULE",
+    "LIVESTOCK_ENGINE",
+    "ANTI_META",
+    "MULTI_ROUTE",
+)
+
+STRATEGY_CONFIG = {
+    "COMMON": {
+        "MAX_QUADRANTS": 3,
+        "MAX_HANDS": 12,
+        "LIQUIDATION_START_STEP": 698,
+        "SHED_SOFT_LIMIT": 85,
+        "CASH_FLOOR": 120,
+    },
+    "ADAPTIVE_ECONOMY": {
+        "ENABLED": True,
+        "MAX_QUADRANTS": 4,
+        "MAX_HANDS": 13,
+        "MAX_MELON_TILES": 5,
+        "FEED_STOCK_DAYS": 2,
+        "OPPONENT_CROWDING_WEIGHT": 1.0,
+    },
+    "FRONTIER_SCHEDULE": {
+        "ENABLED": False,
+        "LAND_DAYS": (7, 10),
+        "LAND_FILL_MIN": 0.75,
+        "HAND_RAMP": ((0, 3), (5, 8), (10, 12)),
+        "HERD_TARGET": {"COW": 8, "SHEEP": 5, "GOOSE": 1},
+        "HERD_COMPLETE_DAY": 12,
+        "EARLY_MELON_TILES": 8,
+        "WHEAT_TILES": 10,
+        "STRAWBERRY_TILES": 32,
+    },
+    "LIVESTOCK_ENGINE": {
+        "ENABLED": True,
+        "HERD_TARGET": {"COW": 8, "SHEEP": 6, "GOOSE": 0},
+        # Do not reserve the full herd footprint while the opening 5x5 is the
+        # only usable field.  The final target is unchanged once land 2 opens.
+        "HERD_CAP_BY_QUADRANTS": {1: 4, 2: 14},
+        "WHEAT_TILES": 14,
+        "STRAWBERRY_TILES": 16,
+        "MAX_QUADRANTS": 2,
+        "MAX_HANDS": 11,
+        "CARE_PRIORITY": 3200,
+        "FEED_STOCK_DAYS": 3,
+    },
+    "ANTI_META": {
+        "ENABLED": True,
+        "MAX_QUADRANTS": 4,
+        "MAX_HANDS": 13,
+        "FEED_STOCK_DAYS": 2,
+        "FINGERPRINT_DAY": 5,
+        "HERD_CAP_BY_QUADRANTS": {1: 3, 2: 8, 3: 13, 4: 13},
+        # The market-aware mix can select more daily-producing geese than the
+        # incumbent fixed mix. Reserve one crew member per four herd tiles so
+        # a full 13-head herd gets four carers instead of three.
+        "ANIMALS_PER_CREW": 4,
+        "CROWDING_WEIGHT": 0.35,
+        "SHOP_DEMAND_WEIGHT": 0.45,
+        "PRICE_MOMENTUM_WEIGHT": 0.20,
+        "SELL_BEFORE_DUMP": True,
+    },
+    "MULTI_ROUTE": {
+        "ENABLED": False,
+        "DECISION_DAY": 5,
+        "RECHECK_DAYS": (8, 12),
+        "CONFIDENCE_MIN": 0.65,
+        "SWITCH_MARGIN": 0.15,
+        "FALLBACK": "ADAPTIVE_ECONOMY",
+    },
+}
+
 USE_ANIMALS = True
 # cost, structure, build_op, first_yield_day, interval, product
 ANIMALS = {
@@ -151,6 +236,28 @@ ANIMALS = {
 }
 
 # ---------------------------------------------------------------------------
+
+
+def strategy_intent(mode=None):
+    """Resolve one high-level mode into the knobs consumed by shared logic.
+
+    Invalid or disabled selections fail closed to ADAPTIVE_ECONOMY. Keeping
+    this object explicit prevents strategy rules from leaking into routing and
+    makes a mode switch a one-line, reviewable change at STRATEGY_MODE.
+    """
+    selected = mode or STRATEGY_MODE
+    config = STRATEGY_CONFIG.get(selected, {})
+    if selected not in SUPPORTED_STRATEGY_MODES or not config.get("ENABLED", False):
+        selected = "ADAPTIVE_ECONOMY"
+        config = STRATEGY_CONFIG[selected]
+    common = STRATEGY_CONFIG["COMMON"]
+    return {
+        "mode": selected,
+        "config": config,
+        "max_quadrants": int(config.get("MAX_QUADRANTS", common["MAX_QUADRANTS"])),
+        "max_hands": int(config.get("MAX_HANDS", common["MAX_HANDS"])),
+        "feed_stock_days": int(config.get("FEED_STOCK_DAYS", 2)),
+    }
 # Strategy toggles. Every flag below defaults to True/on, reproducing the
 # promoted agent's current behaviour exactly (verified: a 20-pair paired
 # self-test, all-flags-default vs a pinned pre-toggle snapshot, +0.0% score
@@ -461,7 +568,44 @@ def _placed_animal_counts(me):
     return c
 
 
-def animal_targets(obs, me):
+def _market_aware_animal_targets(obs, have, cap, config):
+    """Allocate herd slots by live product value and visible future crowding.
+
+    Existing animals are never removed. Each additional slot discounts the
+    relevant product for both players' visible animals, which diversifies away
+    from a species the opponent is already scaling without guessing at their
+    hidden inventory. Town demand raises the corresponding product value.
+    """
+    opponent = _placed_animal_counts(obs["farms"][1 - obs["player"]])
+    prices = (obs.get("market") or {}).get("prices", {})
+    demand = demand_counts(obs)
+    crowding = float(config["CROWDING_WEIGHT"])
+    demand_weight = float(config["SHOP_DEMAND_WEIGHT"])
+    remaining_days = max(1, 29 - int(obs.get("day", 0)))
+    projected = Counter(have)
+    order = []
+
+    def marginal_value(animal):
+        cost, _, _, first_yield, interval, product = ANIMALS[animal]
+        producing_days = max(0, remaining_days - first_yield)
+        production_ticks = producing_days / max(1, interval)
+        visible_supply = opponent[animal] + projected[animal]
+        product_price = float(prices.get(product, BASE[product]))
+        adjusted_price = product_price / (1.0 + crowding * visible_supply)
+        demand_boost = 1.0 + demand_weight * demand[product]
+        fertilizer_line = remaining_days * float(prices.get("FERTILIZER", BASE["FERTILIZER"]))
+        return production_ticks * adjusted_price * demand_boost + fertilizer_line - cost
+
+    while sum(projected.values()) < cap:
+        animal = max(ANIMALS, key=marginal_value)
+        projected[animal] += 1
+        if animal not in order:
+            order.append(animal)
+    order.extend(animal for animal in ANIMALS if projected[animal] and animal not in order)
+    return {animal: projected[animal] for animal in order if projected[animal]}
+
+
+def animal_targets(obs, me, intent=None):
     """How many of each animal we want. Replay 104701051: both top agents ran
     12-15 animals (mostly COW) and by the back half of the season their farms are
     animal-dominated. Animals produce milk/wool/egg indefinitely with no replant
@@ -470,12 +614,31 @@ def animal_targets(obs, me):
     days to break even, so we stop adding animals after day 17 and just hold."""
     if not USE_ANIMALS:
         return {}
+    intent = intent or strategy_intent("ADAPTIVE_ECONOMY")
     day = obs.get("day", 0)
     have = _placed_animal_counts(me)
     if day > 17:
         return dict(have)                       # freeze; no new reservations
+    if intent["mode"] == "LIVESTOCK_ENGINE":
+        want = intent["config"]["HERD_TARGET"]
+        nq = len(me.get("unlocked_quadrants", []))
+        staged_caps = intent["config"].get("HERD_CAP_BY_QUADRANTS", {})
+        cap = int(staged_caps.get(nq, sum(want.values())))
+        cap = max(sum(have.values()), min(cap, sum(want.values())))
+        out, total = {}, 0
+        for animal in ("COW", "SHEEP", "GOOSE"):
+            take = max(have[animal], min(int(want.get(animal, 0)), cap - total))
+            if take:
+                out[animal] = take
+                total += take
+        return out
     nq = len(me.get("unlocked_quadrants", []))
     cap = {1: 3, 2: 8}.get(nq, 13)
+    if intent["mode"] == "ANTI_META" and day >= int(intent["config"]["FINGERPRINT_DAY"]):
+        caps = intent["config"]["HERD_CAP_BY_QUADRANTS"]
+        cap = int(caps.get(nq, cap))
+        cap = max(sum(have.values()), cap)
+        return _market_aware_animal_targets(obs, have, cap, intent["config"])
     dem = demand_counts(obs)
     # opponent-conditional scale (PLAN_LADDER_V10 F1). MILK/WOOL floor to single digits
     # when both players dump them, but FERTILIZER (free, 1/animal/day, even
@@ -638,13 +801,51 @@ def animal_crew_actions(obs, me, private, reserved, crew_idx, positions, invs):
     return out
 
 
-def choose_crops(obs, me, private, counts, plant_slots):
+def animal_crew_size(intent, n_units, n_animals, n_reserved):
+    """Size the dedicated herd crew without changing the shared executor.
+
+    Adaptive and livestock modes retain the incumbent rule exactly. ANTI_META
+    can independently reserve more service capacity for its dynamic species
+    mix, while still leaving at least six units available for crops.
+    """
+    herd_tiles = max(n_animals, n_reserved)
+    if intent["mode"] == "ANTI_META":
+        animals_per_crew = max(1, int(intent["config"]["ANIMALS_PER_CREW"]))
+        wanted = max(1, (herd_tiles + animals_per_crew - 1) // animals_per_crew)
+    else:
+        wanted = 1 + herd_tiles // 5
+    return min(4, max(0, n_units - 6), wanted)
+
+
+def choose_crops(obs, me, private, counts, plant_slots, intent=None):
     """Return a list of crop names (length == plant_slots) to plant this turn."""
+    intent = intent or strategy_intent("ADAPTIVE_ECONOMY")
     day = obs.get("day", 0)
     prices = (obs.get("market") or {}).get("prices", {})
     mkt_inv = (obs.get("market") or {}).get("inventory", {})
     opp = field_counts(obs["farms"][1 - obs["player"]])
     total = max(1, sum(counts.values()) + plant_slots)
+
+    if intent["mode"] == "LIVESTOCK_ENGINE":
+        cfg = intent["config"]
+        targets = {
+            "WHEAT": int(cfg["WHEAT_TILES"]),
+            "STRAWBERRY": int(cfg["STRAWBERRY_TILES"]) if day >= 4 else 0,
+        }
+        picks = []
+        cur = Counter(counts)
+        for _ in range(plant_slots):
+            available = [crop for crop, target in targets.items()
+                         if day <= CROPS[crop][4] and cur[crop] < target]
+            if not available:
+                available = [crop for crop in ("WHEAT", "STRAWBERRY")
+                             if day <= CROPS[crop][4] and (crop != "STRAWBERRY" or day >= 4)]
+            if not available:
+                break
+            crop = max(available, key=lambda c: targets[c] - cur[c])
+            picks.append(crop)
+            cur[crop] += 1
+        return picks
 
     # Week 1 is a liquidity race, not a value race. Probe of the old mix: the
     # field sat at 1 quadrant and $206 cash until ~day 15 because week-1 plantings
@@ -866,7 +1067,7 @@ def build_tasks(obs, me, private):
     return tasks, counts
 
 
-def add_plant_tasks(obs, me, private, counts, tasks, n_units, reserved=()):
+def add_plant_tasks(obs, me, private, counts, tasks, n_units, reserved=(), intent=None):
     day = obs.get("day", 0)
     hour = obs.get("hour", 0)
     if day >= 27 or hour >= 22:
@@ -904,7 +1105,8 @@ def add_plant_tasks(obs, me, private, counts, tasks, n_units, reserved=()):
     if not empty:
         return
     seeds = private.get("seeds", {})
-    picks = choose_crops(obs, me, private, counts, min(room, len(empty), n_units * 2))
+    picks = choose_crops(obs, me, private, counts,
+                         min(room, len(empty), n_units * 2), intent)
     # only expose as many PLANT tasks per crop as we have seeds (atomic-plant rule)
     seed_budget = Counter({c: int(seeds.get(c, 0)) for c in CROPS})
     pi = 0
@@ -1047,10 +1249,11 @@ def assign(obs, me, private, tasks, zones, forced=None):
     return actions
 
 
-def market_orders(obs, me, private, counts, n_units):
+def market_orders(obs, me, private, counts, n_units, intent=None):
     """Assemble up to 10 orders. Time-critical items (hiring at dawn, selling
     perishable high-value produce) go first so they are never truncated."""
     day = obs.get("day", 0)
+    intent = intent or strategy_intent("ADAPTIVE_ECONOMY")
     hour = obs.get("hour", 0)
     money = float(me.get("money", 0))
     shed = private.get("shed", {}) or {}
@@ -1118,6 +1321,7 @@ def market_orders(obs, me, private, counts, n_units):
             desired = 8
         else:
             desired = 0
+        desired = min(desired, intent["max_hands"])
         for _ in range(max(0, desired - int(me.get("hires_today", 0)))):
             hires.append(["HIRE"])
 
@@ -1189,7 +1393,7 @@ def market_orders(obs, me, private, counts, n_units):
     # it with the hands to work it and a back-half long enough to pay it back.
     unlocked = list(me.get("unlocked_quadrants", []))
     open_tiles = len(unlocked_cells(me))
-    if hour <= 3 and len(unlocked) < 4:
+    if hour <= 3 and len(unlocked) < min(4, intent["max_quadrants"]):
         nth = len(unlocked) - 1                       # 0/1 -> quad 2/3, 2 -> quad 4
         cost = (1000, 2000, 4000)[nth]
         fill = sum(counts.values()) / max(1, open_tiles)
@@ -1245,7 +1449,7 @@ def market_orders(obs, me, private, counts, n_units):
         placed_total = sum(have.values())
         pending = int(sum(v for k, v in shed.items() if k in ANIMALS))
         if hour <= 6:
-            tgt = animal_targets(obs, me)
+            tgt = animal_targets(obs, me, intent)
             opp_farm_tiles = obs["farms"][1 - obs.get("player", 0)].get("tiles", [])
             opp_an = sum(1 for row in opp_farm_tiles for t in row
                          if isinstance(t, dict) and t.get("animal"))
@@ -1284,7 +1488,7 @@ def market_orders(obs, me, private, counts, n_units):
                         money -= ANIMALS[a][0]
                         break
         if (placed_total or pending) and hour <= 4:
-            need_w = 2 * (placed_total + pending) + 4
+            need_w = intent["feed_stock_days"] * (placed_total + pending) + 4
             have_w = int(shed.get("WHEAT", 0))
             if have_w < need_w:
                 wp = max(1, price_at("WHEAT", mkt_inv.get("WHEAT", 10000)))
@@ -1327,7 +1531,7 @@ def market_orders(obs, me, private, counts, n_units):
 
     # ---- seeds: keep a small buffer for the crops we mean to plant ----
     if day < 27:
-        need = Counter(choose_crops(obs, me, private, counts, n_units * 2))
+        need = Counter(choose_crops(obs, me, private, counts, n_units * 2, intent))
         buf = 3 if n_units <= 4 else 4
         spent = 0
         for crop in sorted(need, key=lambda c: -need[c]):
@@ -1350,7 +1554,7 @@ def market_orders(obs, me, private, counts, n_units):
     return out[:10]
 
 
-def agent(obs):
+def _run_strategy(obs, intent):
     try:
         player = int(obs.get("player", 0))
         farms = obs.get("farms", [])
@@ -1362,7 +1566,7 @@ def agent(obs):
 
         cells = unlocked_cells(me)
 
-        reserved = animal_tiles(me, animal_targets(obs, me)) if USE_ANIMALS else []
+        reserved = animal_tiles(me, animal_targets(obs, me, intent)) if USE_ANIMALS else []
         forced = {}
         n_crew = 0
         # day 29: FEED/CARE bank nothing (their tick never resolves); disband the
@@ -1371,7 +1575,7 @@ def agent(obs):
             n_animals = sum(1 for row in me["tiles"] for t in row
                             if isinstance(t, dict) and t.get("animal"))
             # size the crew to the herd, but always leave >=6 units on crops
-            n_crew = min(4, max(0, n_units - 6), 1 + max(n_animals, len(reserved)) // 5)
+            n_crew = animal_crew_size(intent, n_units, n_animals, len(reserved))
             if n_crew > 0:
                 crew_idx = list(range(n_units - n_crew, n_units))   # the last hands
                 positions = [tuple(me["farmer"])] + [tuple(p) for p in me.get("hands", [])]
@@ -1384,10 +1588,10 @@ def agent(obs):
         zones += [set() for _ in range(n_units - len(zones))]
 
         tasks, counts = build_tasks(obs, me, private)
-        add_plant_tasks(obs, me, private, counts, tasks, n_units, reserved)
+        add_plant_tasks(obs, me, private, counts, tasks, n_units, reserved, intent)
         actions = assign(obs, me, private, tasks, zones, forced=forced)
 
-        market = market_orders(obs, me, private, counts, n_units)
+        market = market_orders(obs, me, private, counts, n_units, intent)
         return {"farmer": actions[0], "hands": actions[1:], "market": market}
     except Exception:
         try:
@@ -1395,6 +1599,21 @@ def agent(obs):
         except Exception:
             n = 0
         return {"farmer": ["PASS"], "hands": [["PASS"] for _ in range(n)], "market": []}
+
+
+def _adaptive_economy_agent(obs):
+    return _run_strategy(obs, strategy_intent("ADAPTIVE_ECONOMY"))
+
+
+def agent(obs):
+    """Dispatch to the selected high-level policy, failing closed to baseline.
+
+    New modes are enabled only after they have a complete implementation and
+    pass the paired promotion gates. Until then, selecting an unavailable or
+    disabled mode intentionally executes the proven adaptive policy rather
+    than returning malformed/no-op actions on the ladder.
+    """
+    return _run_strategy(obs, strategy_intent())
 
 
 if __name__ == "__main__":

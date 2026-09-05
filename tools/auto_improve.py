@@ -115,12 +115,26 @@ def sh(argv, timeout=None, stdin_path=None, check=False):
 
 
 def git_status_paths():
-    """Set of repo-relative POSIX paths git currently reports as changed/untracked."""
-    out = sh(["git", "status", "--porcelain", "-z"]).stdout
+    """Set of repo-relative POSIX paths git currently reports as changed/untracked.
+
+    `git status --porcelain -z` records a rename/copy as TWO NUL-separated
+    chunks: `"XY old_path"` followed by a bare `"new_path"` with no status
+    prefix. Treating every chunk uniformly (the old code's `chunk[3:]` on
+    each) strips 3 real characters off the new path and can let a renamed
+    stray file slip past `is_allowed()` undetected."""
+    parts = sh(["git", "status", "--porcelain", "-z"]).stdout.split("\0")
     paths = set()
-    for chunk in out.split("\0"):
-        if len(chunk) > 3:
-            paths.add(chunk[3:].strip().replace("\\", "/"))
+    i = 0
+    while i < len(parts):
+        chunk = parts[i]
+        i += 1
+        if len(chunk) <= 3:
+            continue
+        status, path = chunk[:2], chunk[3:].strip()
+        paths.add(path.replace("\\", "/"))
+        if status[0] in "RC" and i < len(parts) and parts[i]:
+            paths.add(parts[i].strip().replace("\\", "/"))
+            i += 1
     return paths
 
 
@@ -339,12 +353,17 @@ def build_prompt(iter_n, cand, base, games, target, analysis, losses,
 # LLM drivers
 # --------------------------------------------------------------------------- #
 class DriverResult:
-    def __init__(self, ok, summary="", raw="", usage_limited=False, error=""):
+    def __init__(self, ok, summary="", raw="", usage_limited=False, error="",
+                 cost_usd=None, duration_ms=None, tokens=None):
         self.ok = ok
         self.summary = summary
         self.raw = raw
         self.usage_limited = usage_limited
         self.error = error
+        self.cost_usd = cost_usd      # claude headless: from its own JSON, real $
+        self.duration_ms = duration_ms
+        self.tokens = tokens          # openai fallback: no hardcoded pricing, so
+                                       # token count is reported instead of $
 
 
 USAGE_LIMIT_RE = re.compile(
@@ -386,13 +405,17 @@ class ClaudeDriver:
             text = data.get("result", "") if isinstance(data, dict) else str(data)
             is_err = isinstance(data, dict) and data.get("is_error")
             subtype = isinstance(data, dict) and data.get("subtype", "")
+            cost_usd = data.get("total_cost_usd") if isinstance(data, dict) else None
+            duration_ms = data.get("duration_ms") if isinstance(data, dict) else None
         except json.JSONDecodeError:
-            text, is_err, subtype = proc.stdout, False, ""
+            text, is_err, subtype, cost_usd, duration_ms = proc.stdout, False, "", None, None
         if is_err or subtype in ("error_max_turns", "error_during_execution"):
             return DriverResult(False, raw=text[-4000:],
                                 usage_limited=bool(USAGE_LIMIT_RE.search(blob)),
-                                error=f"claude result error: {subtype}")
-        return DriverResult(True, summary=_last_json_line(text) or text[-400:], raw=text)
+                                error=f"claude result error: {subtype}",
+                                cost_usd=cost_usd, duration_ms=duration_ms)
+        return DriverResult(True, summary=_last_json_line(text) or text[-400:], raw=text,
+                            cost_usd=cost_usd, duration_ms=duration_ms)
 
 
 class OpenAIDriver:
@@ -447,9 +470,11 @@ class OpenAIDriver:
             {"role": "user", "content": prompt},
         ]
         transcript = []
+        total_tokens = 0
         try:
             for _ in range(self.max_steps):
                 data = self._call(messages, tools)
+                total_tokens += (data.get("usage") or {}).get("total_tokens", 0)
                 msg = data["choices"][0]["message"]
                 messages.append(msg)
                 transcript.append(msg)
@@ -466,16 +491,19 @@ class OpenAIDriver:
                         (iter_dir / "driver_openai.json").write_text(
                             json.dumps(transcript, indent=2)[:200000], encoding="utf-8")
                         return DriverResult(True, summary=args.get("summary", ""),
-                                            raw=json.dumps(transcript)[:8000])
+                                            raw=json.dumps(transcript)[:8000],
+                                            tokens=total_tokens)
         except urllib.error.HTTPError as e:
             detail = e.read().decode(errors="replace")
             return DriverResult(False, error=f"openai HTTP {e.code}: {detail[:500]}",
-                                usage_limited=e.code == 429 or bool(USAGE_LIMIT_RE.search(detail)))
+                                usage_limited=e.code == 429 or bool(USAGE_LIMIT_RE.search(detail)),
+                                tokens=total_tokens)
         except Exception as e:  # noqa: BLE001
-            return DriverResult(False, error=f"openai driver: {e!r}")
+            return DriverResult(False, error=f"openai driver: {e!r}", tokens=total_tokens)
         (iter_dir / "driver_openai.json").write_text(
             json.dumps(transcript, indent=2)[:200000], encoding="utf-8")
-        return DriverResult(True, summary="(no finish call)", raw=json.dumps(transcript)[:8000])
+        return DriverResult(True, summary="(no finish call)", raw=json.dumps(transcript)[:8000],
+                            tokens=total_tokens)
 
     def _dispatch(self, fn, args):
         try:
@@ -553,9 +581,19 @@ def revert_stray(pre_paths: set[str], bdir: Path) -> list[str]:
                 live.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(backup, live)
                 reverted.append(rel)
-        elif live.exists():
-            live.unlink()
-            reverted.append(f"{rel} (deleted new)")
+        else:
+            # No pre-fix backup -- this file was clean (not in pre_paths) before
+            # the driver ran, so backup_tree() never copied it. If git tracks it
+            # (it existed clean at HEAD), a straight unlink() would PERMANENTLY
+            # DELETE a real repo file instead of reverting it -- restore from
+            # HEAD instead. Only delete when it's genuinely new/untracked.
+            tracked = sh(["git", "ls-files", "--error-unmatch", "--", rel]).returncode == 0
+            if tracked:
+                sh(["git", "checkout", "--", rel])
+                reverted.append(f"{rel} (restored from HEAD)")
+            elif live.exists():
+                live.unlink()
+                reverted.append(f"{rel} (deleted new)")
     return reverted
 
 
@@ -641,6 +679,11 @@ def main():
                     help="candidate must beat main.py score by at least this")
     ap.add_argument("--max-iters", type=int, default=15)
     ap.add_argument("--max-hours", type=float, default=12.0)
+    ap.add_argument("--max-cost-usd", type=float, default=None,
+                    help="stop once the claude driver's accumulated total_cost_usd "
+                         "(from its own JSON output) reaches this; unset = no cap. "
+                         "The openai fallback has no hardcoded pricing table so its "
+                         "spend is tracked in tokens only and does not count here.")
     ap.add_argument("--patience", type=int, default=5,
                     help="stop after this many iters with no new best")
     ap.add_argument("--regress-tol", type=float, default=0.02,
@@ -764,6 +807,8 @@ def main():
         best_metrics = state.get("best_metrics")
         last_best_iter = state.get("last_best_iter", 0)
         reseed_tried = state.get("reseed_tried", [])
+        cost_usd_total = state.get("cost_usd_total", 0.0)
+        tokens_total = state.get("tokens_total", 0)
 
         while True:
             # ---- stop checks ---------------------------------------------- #
@@ -774,6 +819,8 @@ def main():
                 print(f"wall-clock cap {args.max_hours}h reached"); break
             if it >= args.max_iters:
                 print(f"iteration cap {args.max_iters} reached"); break
+            if args.max_cost_usd is not None and cost_usd_total >= args.max_cost_usd:
+                print(f"cost cap ${args.max_cost_usd:.2f} reached (spent ${cost_usd_total:.2f})"); break
 
             # one iteration before patience would exhaust, try an auto-reseed from
             # the next untried --reseed-pool file instead of just stopping -- a
@@ -844,12 +891,14 @@ def main():
                     append_ledger(ledger, f"## iter {it} -- SUCCESS\n"
                                   f"paired {cand['score']:.1%} / verify {vcand['score']:.1%} "
                                   f"(target {args.target:.1%}, baseline {base['score']:.1%}). "
+                                  f"Run cost so far: ${cost_usd_total:.2f}. "
                                   f"Reminder (CLAUDE.md Benchmarking notes): local compete.py "
                                   f"score is a candidate signal, NOT a promote decision -- A/B "
                                   f"vs main.py yourself and submit manually. Stopping.")
                     state.update(iter=it, driver=driver_name, best_key=list(best_score),
                                  best_metrics=best_metrics, last_best_iter=last_best_iter,
                                  reseed_tried=reseed_tried, elapsed_s=time.time() - t_start,
+                                 cost_usd_total=cost_usd_total, tokens_total=tokens_total,
                                  outcome="success", final=cand, verify=vcand)
                     save_state(run_dir, state)
                     print("\n*** SUCCESS -- candidate at", f"{cand['score']:.1%}",
@@ -904,9 +953,18 @@ def main():
             last_good = iter_dir / "main_auto.pre.py"
             shutil.copy2(auto, last_good)
 
+            def call_driver(d):
+                nonlocal cost_usd_total, tokens_total
+                r = d.run_fix(prompt, iter_dir)
+                if r.cost_usd:
+                    cost_usd_total += r.cost_usd
+                if r.tokens:
+                    tokens_total += r.tokens
+                return r
+
             driver = make_driver(driver_name, args)
             print(f"  invoking {driver.name} ...")
-            res = driver.run_fix(prompt, iter_dir)
+            res = call_driver(driver)
 
             # Usage limits often reset within minutes-to-an-hour -- retry the
             # SAME driver with backoff before giving up on it (PLAN_AUTO_IMPROVE_V2
@@ -919,7 +977,7 @@ def main():
                 print(f"  {driver.name} usage-limited -- retry {retry_i}/"
                       f"{args.usage_limit_retries} in {delay:.0f}s ...")
                 time.sleep(delay)
-                res = driver.run_fix(prompt, iter_dir)
+                res = call_driver(driver)
 
             if not res.ok and res.usage_limited and effective_fallback != "none" \
                     and effective_fallback != driver_name:
@@ -930,7 +988,14 @@ def main():
                              f"retries, switched to {effective_fallback}\n")
                 driver_name = effective_fallback
                 driver = make_driver(driver_name, args)
-                res = driver.run_fix(prompt, iter_dir)
+                res = call_driver(driver)
+
+            if res.cost_usd:
+                print(f"  driver cost this call: ${res.cost_usd:.4f}")
+            elif res.tokens:
+                print(f"  driver tokens this call: {res.tokens}")
+            print(f"  run total so far: ${cost_usd_total:.2f}" +
+                  (f" + {tokens_total} openai tokens" if tokens_total else ""))
 
             # ---- guardrails ------------------------------------------- #
             reverted = revert_stray(pre_paths, bdir)
