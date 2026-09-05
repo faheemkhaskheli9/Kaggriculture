@@ -106,6 +106,7 @@ checklist + current pointer, not a re-explanation.
 - **Deadline:** 2026-09-30 23:59. $50,000 prize.
 - **`main.py` on disk right now:** Lever 2 (commit `c9ab4ff`, docstring header now says v14 — see `agents/main_v14.py`), NOT what's submitted. The submitted `56023304` is the older `P4b+cropflip` (`be12348`) snapshot — item 1a is done, 1b is in progress (waiting on episode count).
 - **`agents/main_v14.py`** (new, this session): frozen snapshot of the current `main.py` (v11 + P4b/cropflip + Lever 2), added to the lineage/compete.py pool per `CLAUDE.md`'s "Agent lineage" convention. `main.py`'s own docstring header was also corrected from a stale "v11" label to "v14" (code untouched, docstring-only diff, re-verified via `compete.py` after the edit).
+- **`agents/main_v15.py`** (new, 2026-09-05): frozen snapshot of `main.py` as it stood right before the 1c routing-fix merge — v14 + toggle/config generalization (`73948dd`) + E3 animal-reserve fold (`dcc219b`). This is the rollback point if the routing merge misbehaves, and the last version independently ladder-characterized via its predecessor `56023304` (515.6, 44% score-rate, animal_factory 21%). Not submitted itself. Added to the `compete.py` lineage pool.
 - Kaggle CLI works via `C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe -m kaggle ...` (plain `kaggle` is not on PATH in this shell).
 - Before trusting any of the above: run `kaggle competitions submissions kaggriculture` yourself — this snapshot is a session-start convenience, not a live source of truth.
 
