@@ -434,7 +434,7 @@ ENABLE_MAXHANDS_12 = True
 # a local promote. OFF (default) keeps the derived {1:7,2:10,nq>=3:13} ramp.
 MAXHANDS_12_CAP = 12
 
-ENABLE_ANIMAL_PACING = True
+ENABLE_ANIMAL_PACING = False
 # ANIMAL-PACING (docs/PLAN_LADDER_NEXT_3.md Lever A, 2026-09-06). ON: for
 # day <= ANIMAL_PACING_LAST_DAY, refuse a BUY_ANIMAL that would leave
 # money < ANIMAL_PACING_CASH_FLOOR after the buy -- a hard post-buy floor
@@ -456,6 +456,63 @@ ANIMAL_PACING_LAST_DAY = 10
 ANIMAL_PACING_CASH_FLOOR = 600  # observed craters land at $51-480; healthy early
                                 # buys clear $600 (1400, a first guess, also
                                 # blocked those and cost economy).
+
+ENABLE_LEVER_B_Q3_GATE = False
+# LEVER B (docs/PLAN_LADDER_NEXT_4.md, 2026-09-06). Companion to Lever A: A
+# killed the day-0..2 animal half of the cash crater, B kills the land half.
+# tools/trace_crater.py: after the opening binge, losses re-crater on the
+# day-3 Q2 ($1000) and day-9..10 Q3 ($2000) land buys. The live Q2/Q3 gate
+# (ENABLE_POLICY_LAND_TIMING=False path) only requires `money >= cost + 600`
+# post-buy -- $600 headroom on a $2000 buy at day 9-10 is exactly the
+# re-crater. ON: for the Q3 buy only (nth == 1), keep the existing fill
+# threshold but replace the flat `cost + 600` with a day-scaled post-buy
+# cash floor (money - cost >= BASE + SLOPE*day: d9 -> $1350, d10 -> $1400,
+# ~2x the current $600, biting only day <= 18).
+# Q2 (nth == 0, pays back fastest) and the Lever2-gated Q4 branch untouched.
+# TUNING HISTORY (96-pair Gate C, seed 260906):
+#  1. FILL 0.78 + floor 1500/100 (d9 $2400): -2.6% / CI [-5.2%,-0.5%] /
+#     -18.3 productive / bot_premium 0-16-1 -- DROPPED.
+#  2. floor-only 1500/100: identical -2.6% / CI [-5.2%,-0.5%] -- DROPPED.
+#     The ~$2400 post-buy floor itself delays Q3 vs crop opps / starves field
+#     capacity (same failure class as Lever A's per-day cap).
+#  3. floor-only 900/50 (this): -1.0% / CI [-3.1%,+0.0%] (incl. 0) /
+#     -8.9 productive / 0 win-loss regressions on any of the 4 core opps /
+#     main self-play 0-5-1 (n=6, noise) -- PASSES Gate C. Ready for a slot
+#     pending Gate 0 (Lever A read) + user approval.
+# OFF (default) = exact byte no-op. Local league cannot gate this (economy
+# change) -- ladder-only EV, same profile as Lever A / B3 / B4.
+LEVER_B_Q3_CASH_FLOOR_BASE = 900
+LEVER_B_Q3_CASH_FLOOR_SLOPE = 50
+
+ENABLE_LEAD_AWARE_RISK = False
+# LEVER C (docs/PLAN_LADDER_NEXT_4.md) -- re-port of commit ca88691 (B4) onto the
+# routing baseline; the original hunk was dropped when 26f041f promoted the
+# routing main.py. PUBLIC_AGENT_STRATEGY_CATALOG.md family 15 ("lead/deficit-
+# aware risk -- optimise P(win), not mean terminal coins"). Rating is
+# Bradley-Terry over win/loss/tie only; margin is discarded. So once safely
+# ahead, extra expected coins buy nothing and only variance can still lose the
+# game -- a late opponent surge, a scarcity swing, or premium goods left unsold.
+# ON: on days LEAD_RISK_START_DAY..LEAD_RISK_LAST_DAY, estimate the lead from
+# PUBLIC state only (both farms' money + placed animals*ASSET + quadrants-past-
+# first*LAND + standing-crop tiles*CROP) plus our own real shed value; when it
+# clears LEAD_RISK_MARGIN in our favour, sell premium lines harder in the
+# general crop-sell `else` branch -- widen the per-turn cap by SELL_MULT and
+# lower the hold-above floor by KEEP_MULT, banking premium inventory sooner.
+# One-sided by design: no "hold premium when behind" half (this env's near-flat
+# price curve barely rewards holding -- cf. the ENABLE_MKT_DEMAND_MATCH
+# rejection). OFF (default) = exact byte no-op: lead_risk stays None, the
+# estimator is flag-guarded, the sell overlay is `if lead_risk == "ahead"`.
+# Local league cannot gate this -- ladder-only EV, same profile as Lever A / B.
+LEAD_RISK_START_DAY = 18
+LEAD_RISK_LAST_DAY = 26          # day>=26 the endgame branch already dumps
+LEAD_RISK_MARGIN = 10000        # generous deadband: opp shed is invisible, so
+                                # the estimate understates the opponent -- only
+                                # act on a lead too large for that bias.
+LEAD_RISK_ASSET = 220           # value credited per placed animal
+LEAD_RISK_LAND = 900            # value credited per quadrant past the first
+LEAD_RISK_CROP = 18             # value credited per visible standing-crop tile
+LEAD_RISK_SELL_MULT = 1.6       # premium per-turn cap widen when safely ahead
+LEAD_RISK_KEEP_MULT = 0.85      # premium hold-above floor relax when ahead
 
 ENABLE_TXCASH_FORECAST = True
 # TXCASH (docs/IMPACT_RANKED_LEADERBOARD_PLAN.md E2 candidate #1: "transactional
@@ -1383,6 +1440,27 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
     # hands, not feed wheat on the animal crew; it zeroed the floor, the herd
     # went underfed, and coins vs starter fell ~45%. See docs/PLAN_LADDER_V10.md.)
     wheat_floor = (2 * n_placed + 4) if (USE_ANIMALS and n_placed and day < 28) else 0
+    # LEVER C (ENABLE_LEAD_AWARE_RISK): coarse public-state lead estimate, once
+    # per call. OFF -> stays None, overlay below never fires -> byte no-op.
+    lead_risk = None
+    if ENABLE_LEAD_AWARE_RISK and LEAD_RISK_START_DAY <= day < LEAD_RISK_LAST_DAY:
+        def _vis_worth(farm):
+            an = cr = 0
+            for row in farm.get("tiles", []) or []:
+                for t in row:
+                    if isinstance(t, dict):
+                        if t.get("animal"):
+                            an += 1
+                        elif t.get("crop"):
+                            cr += 1
+            nq = len(farm.get("unlocked_quadrants", []) or [])
+            return (float(farm.get("money", 0)) + an * LEAD_RISK_ASSET
+                    + max(0, nq - 1) * LEAD_RISK_LAND + cr * LEAD_RISK_CROP)
+        my_shed_val = sum(int(q) * price_at(it, mkt_inv.get(it, 10000))
+                          for it, q in shed.items() if it in BASE and int(q) > 0)
+        opp_worth = _vis_worth(obs["farms"][1 - obs["player"]])
+        if (_vis_worth(me) + my_shed_val) - opp_worth >= LEAD_RISK_MARGIN:
+            lead_risk = "ahead"
     for item, qty in list(shed.items()):
         qty = int(qty)
         if item == "WHEAT":
@@ -1424,6 +1502,11 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
                 cap = 8
             if p0 >= 1.4 * base:            # far from a glut -> move more
                 cap = int(cap * min(4.0, p0 / base))
+            if lead_risk == "ahead" and prem:
+                # LEVER C: safely ahead -> margin no longer scores; bank premium
+                # sooner and shrink variance (see ENABLE_LEAD_AWARE_RISK).
+                cap = int(cap * LEAD_RISK_SELL_MULT)
+                keep *= LEAD_RISK_KEEP_MULT
             amount = 0
             while amount < min(qty, cap) and price_at(item, inv0 + 2 * amount) >= keep:
                 amount += 1
@@ -1453,6 +1536,10 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
             elif ENABLE_POLICY_LAND_TIMING:                       # Q3
                 ok = (POLICY_LAND_Q3_DAY_LO <= day <= POLICY_LAND_Q3_DAY_HI
                       and fill >= POLICY_LAND_Q3_FILL and money >= cost + 600)
+            elif ENABLE_LEVER_B_Q3_GATE and nth == 1:                # Q3
+                ok = (day <= 18 and fill >= POLICY_LAND_TIMING_OFF_FILL
+                      and money - cost >= LEVER_B_Q3_CASH_FLOOR_BASE
+                                          + LEVER_B_Q3_CASH_FLOOR_SLOPE * day)
             else:
                 ok = (day <= 18 and fill >= POLICY_LAND_TIMING_OFF_FILL
                       and money >= cost + 400 + 200 * nth)
