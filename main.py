@@ -434,7 +434,7 @@ ENABLE_MAXHANDS_12 = True
 # a local promote. OFF (default) keeps the derived {1:7,2:10,nq>=3:13} ramp.
 MAXHANDS_12_CAP = 12
 
-ENABLE_ANIMAL_PACING = False
+ENABLE_ANIMAL_PACING = True
 # ANIMAL-PACING (docs/PLAN_LADDER_NEXT_3.md Lever A, 2026-09-06). ON: for
 # day <= ANIMAL_PACING_LAST_DAY, refuse a BUY_ANIMAL that would leave
 # money < ANIMAL_PACING_CASH_FLOOR after the buy -- a hard post-buy floor
