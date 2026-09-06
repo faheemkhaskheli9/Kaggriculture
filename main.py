@@ -457,7 +457,7 @@ ANIMAL_PACING_CASH_FLOOR = 600  # observed craters land at $51-480; healthy earl
                                 # buys clear $600 (1400, a first guess, also
                                 # blocked those and cost economy).
 
-ENABLE_LEVER_B_Q3_GATE = False
+ENABLE_LEVER_B_Q3_GATE = True
 # LEVER B (docs/PLAN_LADDER_NEXT_4.md, 2026-09-06). Companion to Lever A: A
 # killed the day-0..2 animal half of the cash crater, B kills the land half.
 # tools/trace_crater.py: after the opening binge, losses re-crater on the
