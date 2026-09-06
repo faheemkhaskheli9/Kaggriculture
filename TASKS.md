@@ -119,6 +119,7 @@ approval.
 | AM-HERDSCALE-1 | Cap the per-head escalation in the BUY_ANIMAL affordability gate | claude 2026-09-05T14:06Z | ready-for-ladder | `scratchpad/cand_fscale.py` (not on main.py) | Local no-op (0 regressions, cash floor not reproducible locally); needs a ladder slot. User approval required. |
 | ROUTE-SUBMIT-1 | Promote validated routing refresh | user | **REVERTED 2026-09-06** — ladder read at full eps rejects routing | `main_v12_flat.py`, `main.py`, `agents/main_v16*.py` | Early 24-ep read (572.9) that drove the KEEP call decayed to **565.7 / 27 eps / 48% / animal_factory 31%** as episodes accrued. Non-routing v15 (`56039865`) reads **590.2 / 30 eps / 57% / animal_factory 63%** — routing regressed the ladder ~25 pts and halved the dominant-archetype win-rate. `main.py` disk reverted to `0aa1da6:main.py` (non-routing v15); routing build preserved as `agents/main_v16_routing.py`, reverted winner as `agents/main_v16.py`. See LEDGER "ROUTING REVERTED" row. |
 | AM-HERDRAMP-1 | Cap early herd acquisition rate (day-0 binge) | claude 2026-09-05T14:06Z | rejected | `main.py` (reverted clean) | Gate B failed x2 — see snapshot note below |
+| LADDER-B1 | PLAN_LADDER_NEXT_2 Phase B1 — replay-isolate which of Lever2/E3/TXCASH carries `56039865`'s animal_factory gain | claude 2026-09-06T04:00Z | running | scratchpad `cand_e3off.py` / `cand_lever2off.py` / `cand_txcashoff.py` (reads `main.py`, no writes to it) | Local paired ablation only, NO submission. Exit: LEDGER row naming the knob that owns the day10/15 cash + score-rate delta; re-rank PLAN_LADDER_NEXT_2 §3 B2 against it. |
 | CHALLENGER-1 | §8 replacement-policy program — Workstream A/B challenger (replay-derived + BC cadence controllers; safety + execution reuse `main.py`) | claude 2026-09-06T02:30Z | v0 rejected / v1 built not wired / **MAXHANDS-12 REJECTED on ladder** | `challenger/` (`agent.py`, `strategy.py`, `clone.py`, `clone_model.json`, `__init__.py`, `README.md`); `agents/main_v16_routing.py` (`ENABLE_MAXHANDS_12` block — no longer on `main.py`) | **v0 (mined herd/quad/hand schedule) — Gate-B FAILED, −10.4% vs `main.py`; bisected**: HERD schedule = the whole regression; QUAD neutral; HAND-cap-12 the only local positive (self-play-bucket only). **MAXHANDS-12 submitted as `56044961` 2026-09-06 02:28 → ladder REJECTED 2026-09-06: 499.7, only 2 eps (0-0-2, both near-ties), stacked on the routing base that itself regressed. Flag block now lives only on `agents/main_v16_routing.py` — reverted `main.py` (`0aa1da6`) never carried it.** `56044961` still occupies a live tracked slot at 499.7. **v1 (BC cadence controller) — built, verified, NOT wired.** `challenger/clone.py`: held-out HIRE F1 **0.774**, BUY_SEED 0.496, SELL 0.505 — only HIRE usable. Remaining if pursued: `live_features()` obs→feature bridge + `EpisodeHistory` + `agent.py` HIRE gate + A/B — **flag ceiling to user first.** commits `c2d3857` + `f79e3d0` + `9f36ac0`. |
 
 Statuses: `ready`, `claimed`, `running`, `done`, `rejected`, or `blocked`.
@@ -347,7 +348,22 @@ Statuses: `ready`, `claimed`, `running`, `done`, `rejected`, or `blocked`.
   regressed (see ROUTE-SUBMIT-1). Still one of the 2 live tracked slots at a
   decaying 499.7 — needs a good `main.py` submission to evict it, gated on user
   approval. Flag block now only on `agents/main_v16_routing.py`.
-- **Last updated:** 2026-09-06 (**PLAN_LADDER_NEXT_2 Phase A — ROUTING REVERTED.**
+- **PLAN_LADDER_NEXT_2 Phase B0 + C1 (2026-09-06, claude):** **B0 done** —
+  re-read `56039865`, episode count frozen at 30 (slot aging out of ladder
+  rotation), reframe holds exactly: 57% overall / animal_factory 63% (10-0-6).
+  All 13 losses share one pattern: mid-game cash crater, our day-15 money a few
+  hundred–1.5k while opp is at 3–32k; the W/L split is decided day 15–25, not
+  earlier. **C1 KILLED** — `scratchpad/c1_detect.py` over all 30 `56039865`
+  replays: no day-3 or day-8 rule separates the 11 factory losses from the 15
+  factory wins (every candidate rule FP ≥ TP; losses show a *better* day-8 coin
+  lead than several wins). **Phase C is closed** per the plan's own kill rule.
+  **B1 running** (LADDER-B1 row) — local paired ablation of Lever2/E3/TXCASH vs
+  the frozen league, 72 pairs each, no submission. LEDGER has both rows.
+- **Last updated:** 2026-09-06 (**PLAN_LADDER_NEXT_2 Phase B0 done + C1 killed +
+  B1 running** — see the snapshot note just above. B0: `56039865` reframe holds
+  at 30 eps (57% / af 63%). C1: no opening checkpoint separates factory W from
+  L, Phase C closed. B1: Lever2/E3/TXCASH ablation screens in progress.) —
+  earlier 2026-09-06 (**PLAN_LADDER_NEXT_2 Phase A — ROUTING REVERTED.**
   Full-episode ladder reads: non-routing v15 `56039865` **590.2 / 57% /
   animal_factory 63%** beats routing `56034847` **565.7 / 48% / 31%** and
   routing+MAXHANDS `56044961` **499.7**. Attributed `56039865` to `0aa1da6:main.py`
