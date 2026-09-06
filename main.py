@@ -303,6 +303,26 @@ ENABLE_LEVER2_LAND_GATE = True
 LEVER2_LAND_GATE_OFF_DAY_LO, LEVER2_LAND_GATE_OFF_DAY_HI = 8, 20
 LEVER2_LAND_GATE_OFF_FILL = 0.62
 LEVER2_LAND_GATE_OFF_N_UNITS = 12
+ENABLE_LEVER2_LAND_MIN_DAYS = False
+# Lever 2 land half, "B2 press" (docs/PLAN_LADDER_NEXT_2.md Phase B2). B1/B2
+# ladder-isolation found ENABLE_LEVER2_LAND_GATE is the sub-flag carrying the
+# non-routing bundle's -2.1% score-rate signal; this presses it. ON: also
+# require at least LEVER2_LAND_MIN_DAYS_LEFT days left in the 30-day season
+# before the computed 4th-quadrant gate can fire -- the existing check values
+# the buy over `remaining` days but never refuses it outright for a too-short
+# back half, so a late $4000 buy that cannot pay itself back still clears when
+# crew slack and crop value happen to line up. OFF: exact no-op (the gate's
+# `ok` expression is byte-identical to the pre-B2 build).
+#
+# B2P screen (2026-09-06, 96-pair adversarial_league_v1, --pick-seed 260906):
+# ON is an *exact local no-op* -- 0/96 games differ, score delta +0.0% CI
+# [+0.0%,+0.0%]. The `has_slack` capacity check in the ENABLE_LEVER2_LAND_GATE
+# branch already refuses the 4th quadrant in ~every local game (coverage_cap
+# needs ~17 hands; we run ~13), so a days-left floor on top of a gate that
+# never fires changes nothing here. Kept at default OFF as a ladder-only
+# candidate (same wall as POLICY_LAND_TIMING / AM-FEED-1) -- the benefit, if
+# any, is only realizable where the computed gate actually passes.
+LEVER2_LAND_MIN_DAYS_LEFT = 12
 ENABLE_POLICY_LAND_TIMING = False
 # POLICY-RARE-1 (ml/artifacts/top_policy_rules.json, 18 verified top-10 farms).
 # ON: gate the Q2/Q3 land unlocks on the mined top-10 timing -- a day floor plus
@@ -464,6 +484,24 @@ ENABLE_MKT_DEMAND_MATCH = False
 MKT_DEMAND_MATCH_FLOOR = 2
 MKT_DEMAND_MATCH_PER_SHOP = 2
 MKT_DEMAND_MATCH_RELAX_DAY = 24
+
+ENABLE_EARLY_CASH_GUARD = True
+# B3 (docs/PLAN_LADDER_NEXT_2.md Phase B3). The "other" loss cluster on
+# submission 56039865 = 7 of 13 losses: premium / melon / mixed opponents with
+# strong early cash where we sit at ~1.5k through day 10 while they reach
+# 12-32k. Same day-0 cash crater as the animal-factory cluster but NOT
+# factory-triggered, so the killed Phase-C opponent-shape detector can't reach
+# it. Symmetric guard, opponent-agnostic: on the opening days, defer by one day
+# the *second* discretionary compounding buy of the turn -- the 2nd BUY_ANIMAL
+# (we already hold/ordered >=1), or a seed restock past the single largest crop
+# batch -- whenever paying for it now would push `money - reserve` under a
+# day-scaled floor. Feed, hires, land, the first animal and the primary seed
+# batch are untouched. OFF path is byte-identical: every added check is guarded
+# by `if ENABLE_EARLY_CASH_GUARD and ...` and the seed-loop `enumerate` wrapper
+# leaves its index unused when the flag is off.
+EARLY_CASH_GUARD_LAST_DAY = 10
+EARLY_CASH_GUARD_FLOOR_BASE = 150
+EARLY_CASH_GUARD_FLOOR_SLOPE = 120   # floor(day) = 150 + 120*day; d1=270 ... d10=1350
 
 
 def _shape(func, x, T):
@@ -1482,6 +1520,8 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
             expected_revenue = best_val * quadrant_tiles * remaining
             ok = (has_slack and expected_revenue >= cost * 1.5
                   and money >= cost + 2500)
+            if ENABLE_LEVER2_LAND_MIN_DAYS:
+                ok = ok and (29 - day) >= LEVER2_LAND_MIN_DAYS_LEFT
         else:
             # pre-Lever-2 hardcoded gate (v10/P4a).
             ok = (LEVER2_LAND_GATE_OFF_DAY_LO <= day <= LEVER2_LAND_GATE_OFF_DAY_HI
@@ -1535,6 +1575,13 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
                         afford = money - reserve >= ANIMALS[a][0] + 150 * placed_total
                     else:
                         afford = money >= ANIMALS[a][0] + E3_OFF_FIXED_MARGIN + 150 * placed_total
+                    if (ENABLE_EARLY_CASH_GUARD and afford
+                            and day <= EARLY_CASH_GUARD_LAST_DAY
+                            and placed_total + pending >= 1):
+                        floor = (EARLY_CASH_GUARD_FLOOR_BASE
+                                 + EARLY_CASH_GUARD_FLOOR_SLOPE * day)
+                        if money - ANIMALS[a][0] - reserve < floor:
+                            afford = False   # defer the 2nd+ animal one day
                     if cur < want and afford:
                         buys_hi.append(["BUY_ANIMAL", a, 1])
                         money -= ANIMALS[a][0]
@@ -1586,12 +1633,18 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
         need = Counter(choose_crops(obs, me, private, counts, n_units * 2, intent))
         buf = 3 if n_units <= 4 else 4
         spent = 0
-        for crop in sorted(need, key=lambda c: -need[c]):
+        for i, crop in enumerate(sorted(need, key=lambda c: -need[c])):
             have = int(seeds.get(crop, 0))
             target = min(need[crop] + buf, 12)
             cost = CROPS[crop][0]
             budget = min(max(0, money - reserve), max(0, seed_spend_cap - spent))
             b = min(max(0, target - have), int(budget // max(1, cost)))
+            if (ENABLE_EARLY_CASH_GUARD and b > 0 and i >= 1
+                    and day <= EARLY_CASH_GUARD_LAST_DAY):
+                floor = (EARLY_CASH_GUARD_FLOOR_BASE
+                         + EARLY_CASH_GUARD_FLOOR_SLOPE * day)
+                if money - b * cost - reserve < floor:
+                    b = 0   # defer seed restock past the primary batch one day
             if b > 0:
                 buys_lo.append(["BUY_SEED", crop, b])
                 money -= b * cost
