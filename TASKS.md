@@ -19,10 +19,17 @@
 
 > **Current operating plan (2026-09-05):** use
 > `docs/IMPACT_RANKED_LEADERBOARD_PLAN.md`, with the shared-agent execution
-> rules in `docs/PLAN_TO_3000.md`. E0 paired A/B evaluation is complete. The
-> next unclaimed strategy task is `AM-FEED-1`; the separately validated routing
-> refresh remains queued for a user-authorized submission window. No candidate
-> is promoted from unpaired coin results.
+> rules in `docs/PLAN_TO_3000.md`. E0 paired A/B evaluation is complete.
+> `AM-FEED-1` is done (default OFF, not promoted). Every remaining strategy row
+> in the work board is done-not-promoted / blocked / rejected / ready-for-ladder
+> — all now gated on a Kaggle slot + user approval, not on more local work. The
+> separately validated routing
+> refresh (item 1f, sub `56034847`) **resolved 2026-09-06: KEEP** — ladder read
+> 572.9 / 24 eps / 50% score-rate / animal_factory 36% vs baseline `56029879`
+> 522.6 / 43% / 29%, clears the flat-or-better rule on every axis. `main.py` on
+> disk still needs `cp main_v12_flat.py main.py` + commit to match the live
+> lineage (deferred — unrelated shared-row WIP in the tree). No candidate is
+> promoted from unpaired coin results.
 
 > **Outcome target:** current live score 553.2 → **1553.2+**. The operating
 > plan's §8 replacement-policy program is the primary path. Incremental items
@@ -101,16 +108,74 @@ approval.
 
 | ID | Priority / isolated mechanism | Owner | Status | Owned files | Handoff / exit gate |
 |---|---|---|---|---|---|
-| AM-FEED-1 | Strict feed-first targeting within the existing ANTI_META crew | unclaimed | ready | TBD on claim | Frozen 40-pair adversarial-v1 A/B; reduce feed failures/escapes, no external regression |
+| AM-FEED-1 | Strict feed-first targeting within the existing ANTI_META crew | claude 2026-09-05T23:20Z | done (not promoted) | `main.py` (`ENABLE_FEED_FIRST_CREW` block only — no-op at default) | Built as a general shared-crew toggle (not ANTI_META-scoped). Zero-diff self-test: OFF == HEAD (0/4320 action diffs, 2 opps × 3 seeds). 40-pair adversarial-v1 A/B: score delta +1.2% CI[+0.0%,+3.8%] (touches zero), every external archetype exactly +0.0%, only flip in `main` self-play; escapes +0.0 (local pool never starves a herd, so the exit gate's "reduce escapes" is unmeasurable locally), no external regression. Default OFF, committed, not promoted. Needs a ladder slot to gate — same wall as land-timing/demand-match/HERDBATCH. |
 | EVAL-FACTORY-1 | Unsaturated factory validation slice from our replays and engine rules | claude 2026-09-05T14:06Z | blocked | `bots/bot_factory_v3.py` (new), `bots/_kagri_botlib.py` | `_kagri_botlib` engine ceiling < main.py — a scripted factory bot can't be unsaturated; needs a replay-driven agent (POLICY-RARE-1) or ladder-gating. See snapshot note. |
 | R3-HERD-1 | Explain/test staged herd-cap signal alone | claude 2026-09-05T18:36Z | done (not promoted) | `experiments/candidate_top10rules.py` | **Closed 2026-09-05: explained, not promoted.** Root cause found+fixed (crew-size formula used reservation target not actual herd, `ENABLE_R3_CREW_FIX`, commit `a729abf`). Isolated crew-fix-alone test (R3 herd-cap OFF) vs `main.py`: score delta -2.5% CI[-6.2%,+1.2%], margin -2819, wheatflood/top10clone regress — the fix only pays off paired with R3's herd-cap bump, not standalone. Do not port the fix onto `main.py` alone; take it bundled with R3 if R3 itself ever clears Gate B. See `experiments/LEDGER.md`. |
-| POLICY-RARE-1 | Explicit BUY_LAND/BUY_ANIMAL timing/value controller | unclaimed | ready | TBD on claim | Episode-held-out benchmark plus paired validation; safety layer unchanged |
+| POLICY-RARE-1 | Explicit BUY_LAND/BUY_ANIMAL timing/value controller | claude 2026-09-05T19:45Z | land-half done (default OFF), animal-half open | `main.py` (`ENABLE_POLICY_LAND_TIMING` block only — no-op at default) | Episode-held-out benchmark plus paired validation; safety layer unchanged. Land half: see snapshot note. Animal half (herd-cap schedule) overlaps R3-HERD-1 — left for that owner or a later slot. |
 | AM-HERDSCALE-1 | Cap the per-head escalation in the BUY_ANIMAL affordability gate | claude 2026-09-05T14:06Z | ready-for-ladder | `scratchpad/cand_fscale.py` (not on main.py) | Local no-op (0 regressions, cash floor not reproducible locally); needs a ladder slot. User approval required. |
-| ROUTE-SUBMIT-1 | Promote validated routing refresh | user | waiting-approval | `main_v12_flat.py`, `main.py` | User approval, submission window clear, final flatten/package validation |
+| ROUTE-SUBMIT-1 | Promote validated routing refresh | user | **done 2026-09-06** — ladder KEEP + disk promoted | `main_v12_flat.py`, `main.py` | Sub `56034847` **572.9 / 24 eps / 50% score-rate / animal_factory 36%** beats baseline `56029879` (522.6 / 43% / 29%) on every axis. `main.py` on disk promoted 2026-09-06 (commit `033990f`, isolated — `cp main_v12_flat.py main.py`, only `main.py` staged; other shared-row WIP left uncommitted). git HEAD now matches live lineage. |
 | AM-HERDRAMP-1 | Cap early herd acquisition rate (day-0 binge) | claude 2026-09-05T14:06Z | rejected | `main.py` (reverted clean) | Gate B failed x2 — see snapshot note below |
+| CHALLENGER-1 | §8 replacement-policy program — Workstream A/B challenger (replay-derived + BC cadence controllers; safety + execution reuse `main.py`) | claude 2026-09-06T02:30Z | v0 rejected / v1 built not wired / **MAXHANDS-12 flipped ON + SUBMITTED `56044961`** | `challenger/` (`agent.py`, `strategy.py`, `clone.py`, `clone_model.json`, `__init__.py`, `README.md`); `main.py` (`ENABLE_MAXHANDS_12` block only) | **v0 (mined herd/quad/hand schedule) — Gate-B FAILED, −10.4% vs `main.py`; bisected**: HERD schedule = the whole regression (−10.2%, CI[−16.4,−3.9]); QUAD neutral; HAND-cap-12 the only positive. Mined-schedule controller rejected. **`ENABLE_MAXHANDS_12` flipped ON (commit `9f36ac0`) and SUBMITTED 2026-09-06 02:28 as sub `56044961` (`main.py`, PENDING).** Pre-submit bug-check (60 paired vs HEAD OFF): +5.0% score delta CI[+1.7,+10.0], 3/57/0 improved/same/regressed, 0 errors, margin +4048; every external archetype flat +0.0% (self-play-bucket only — the pattern repo history says often evaporates on ladder, so this spends a slot to get a real read). Evicts `56034847`; tracked latest-2 = `56044961` + `56039865` (580.8, the unexplained out-of-workflow submission — see snapshot). **Next: wait 20+ eps, `tools/ladder_analyze.py 56044961` vs `56039865`, keep/revert per the 1b flat-or-better rule; if reverted, flip the flag back OFF + commit.** **v1 (BC cadence controller) — built, verified, NOT wired.** `challenger/clone.py` trains 1 binary NB per learnable family (HIRE/BUY_SEED/SELL); held-out HIRE F1 **0.774**, BUY_SEED 0.496, SELL 0.505. Only HIRE usable. Remaining if pursued: `live_features()` obs→feature bridge + `EpisodeHistory` + `agent.py` HIRE gate + A/B — **flag ceiling to user first.** commits `c2d3857` + `f79e3d0` + `9f36ac0`. |
 
 Statuses: `ready`, `claimed`, `running`, `done`, `rejected`, or `blocked`.
 
+- **AM-FEED-1 done, default OFF (2026-09-05, claude e8):** `ENABLE_FEED_FIRST_CREW`
+  in `main.py`. `animal_crew_actions` step 3 (walk-to-service) merges feed +
+  harvest/fert + CARE into one goal list and picks the globally-nearest of any
+  type, so a crew unit near a harvest tile services it instead of a hungry
+  animal two steps further — two such turns = permanent escape. ON: a crew unit
+  carrying wheat with any unfed animal pending goes strictly to the nearest
+  hungry one; yield/fert/CARE (also emitted as ordinary tasks for the non-crew
+  units) wait. Built as a general shared-crew toggle, not ANTI_META-scoped
+  (ANTI_META isn't promoted; the crew fn is shared and gets no `intent`).
+  Zero-diff self-test: OFF path is an exact no-op vs HEAD (0/4320 action diffs,
+  starter + animalfactory_v2 × 3 seeds). 40-pair frozen adversarial-v1 A/B
+  (`--pick-seed 260906`, ON vs main.py): **score delta +1.2%, 90% CI
+  [+0.0%,+3.8%] touches zero; every external archetype exactly +0.0% score
+  delta (only flip in `main` self-play, +12.5%); margin delta -53 (noise),
+  escapes +0.0, plant->weed -1.0, movement -0.1%.** No external regression (that
+  half of the exit gate met) but the "reduce feed failures/escapes" half is
+  unmeasurable locally — the pool never pushes our herd into starvation
+  (escapes already 0 on both sides). Kept at default OFF for a dedicated ladder
+  A/B when a slot frees; not promoted. Run:
+  `compete_runs/20260905-232303-157955/`. Same "local can't gate an economy
+  change" wall as land-timing / demand-match / HERDBATCH.
+- **PLAN_ROUTE_ENGINE Phase 1a REJECTED (2026-09-05, claude e8):**
+  `ENABLE_MKT_DEMAND_MATCH` in `main.py` (default OFF, zero-diff no-op verified).
+  Demand-matched premium sell sizing — cap each turn's SELL at an estimate of
+  this hour's free town/shop absorption (`FLOOR` + `PER_SHOP`*unlocked-shops-
+  wanting-it on a `hour%4==0` tick), holding the rest for later turns nearer
+  the scarcity price. 80-pair frozen adversarial-v1 A/B (`--pick-seed 260906`,
+  ON vs HEAD): **score delta +0.0%, 90% CI [-2.5%, +2.5%], margin delta -7099
+  with every archetype negative** (premium -14124, animalfactory -8290,
+  wheatflood -5014, top10clone -2203), 1/77/2 improved/same/regressed. Holding
+  inventory back to "sell later at a higher price" doesn't pay — the curve is
+  near-flat with market inv pinned near I0 all season (KB 03), so the existing
+  `keep`-threshold loop already protects price and the throttle just delays
+  revenue → less cash to compound land/animal buys. Confirms the repo's
+  standing "market barely moves, sell cadence isn't the lever" finding for the
+  *throttle* direction too (the market-maker/flood direction was already
+  rejected, PLAN_300K s1-2). Toggle left at False per convention. Run:
+  `compete_runs/20260905-195351-887391/`. **Phase 1b (`ENABLE_MKT_OPP_DUMP_GUARD`,
+  opponent-dump denial) not attempted — same near-flat-curve reason makes it
+  low-odds; needs a ladder slot to gate if tried at all.**
+- **POLICY-RARE-1 land half done, default OFF (2026-09-05, claude e8):**
+  `ENABLE_POLICY_LAND_TIMING` in `main.py`. From `ml/artifacts/top_policy_rules.json`
+  (18 verified top-10 farms): Q2 unlocks day 5-6 at ~76% fill, Q3 day 8-11 at
+  ~62% of 2 quadrants, Q4 never — our flat `fill>=0.55` with no day floor
+  expands land earlier and looser, thinning the crew. Toggle gates Q2 on
+  `day>=5 & fill>=0.72`, Q3 on `8<=day<=13 & fill>=0.62`; money gate left
+  byte-identical to OFF to isolate *timing* only. Zero-diff self-test: OFF path
+  is an exact no-op vs HEAD (0/2160 action diffs, 3 seeds). 80-pair frozen
+  adversarial-v1 A/B (`--pick-seed 260906`, ON vs HEAD): **score delta +3.1%
+  but 90% CI [-0.6%, +7.5%] crosses zero; every external archetype exactly
+  +0.0% score delta (all 4 flips in `main` self-play, +70%); margin delta -395,
+  one bot_animalfactory_v2 regression.** plant->weed -3.8 / movement -1.0%
+  confirm the crew-thinning hypothesis directionally but it does not convert to
+  score-rate locally — the standing "local can't gate an economy change" wall.
+  Kept in code at **default OFF** for a dedicated ladder A/B when a slot frees;
+  not promoted on this read. Animal half (herd-cap schedule to ~15) overlaps
+  R3-HERD-1 — not taken. Run: `compete_runs/20260905-194116-455066/`.
 - **AM-HERDSCALE-1 ready-for-ladder (2026-09-05, claude):** F-SCALE — from the
   EVAL-FACTORY-1 mine (our herd ends the season at ~8 vs the winning opponent's
   14-16; our own `animal_targets` cap is 13 but unreached). Root cause: the
@@ -264,7 +329,29 @@ Statuses: `ready`, `claimed`, `running`, `done`, `rejected`, or `blocked`.
   status, and reward (final money $53,388); compile/diff checks and a four-game
   smoke run also completed with zero crashes/errors. This foundation milestone
   is now superseded by the strategy-intent/livestock snapshot immediately above.
-- **Last updated:** 2026-09-05 (later — 1b resolved flat/keep, `main_v12_flat.py` re-validated and ready for the next slot, 1d root-caused with a Gate-B-passing candidate not yet submitted; later still — Workstream A land/animal rule-mining complete; later still — **1c submitted**; later still — **E3 (1d) folded onto `main.py` as `ENABLE_E3_ANIMAL_RESERVE`, re-gated with a weaker/ambiguous result — see below, don't cite the original +5.0% number anymore**; later still — **1e (HERDBATCH) folded onto `main.py`, re-gated NEGATIVE, default set `False`, not submitted**)
+- **`56039865`** (`main.py`, submitted 2026-09-05 20:02): **580.8** — best score
+  on the board and a tracked slot, but **submitted outside this repo's
+  workflow**: no commit message, no ledger row, no TASKS note, and no git
+  activity after `033990f`. Contents unverified (presumably `033990f` `main.py`
+  ± local edits). Treat as an opaque baseline.
+- **`56044961`** (`main.py`, `ENABLE_MAXHANDS_12` ON, commit `9f36ac0`,
+  submitted 2026-09-06 02:28): **PENDING.** CHALLENGER-1 MAXHANDS-12 candidate —
+  dawn HIRE cap 12 vs 13 for nq>=3. Local bug-check +5.0% CI[+1.7,+10.0] paired
+  vs flag-OFF, 0 regressions, but self-play-bucket only. Tracked latest-2 now
+  `56044961` + `56039865`; `56034847` (565.7) evicted. Read at 20+ eps vs
+  `56039865`, keep/revert per the 1b flat-or-better rule; flip flag back OFF +
+  commit if reverted.
+- **Last updated:** 2026-09-06 (**CHALLENGER-1 MAXHANDS-12 submitted** as
+  `56044961` — `ENABLE_MAXHANDS_12` flipped ON, committed `9f36ac0`, isolated
+  to `main.py`. Also corrected a stale fact: tracked latest-2 before this were
+  `56039865` (580.8, out-of-workflow) + `56034847` (565.7), NOT
+  `56034847` + `56029879` as prior notes said.) — earlier 2026-09-06 (**1f/ROUTE-SUBMIT-1 fully closed**: ladder read
+  KEEP — sub `56034847` 572.9 / 24 eps / 50% score-rate / animal_factory 36%
+  beats baseline `56029879` 522.6 / 43% / 29% on every axis; `56034847` is the
+  new comparison baseline. `main.py` disk promote DONE — commit `033990f`,
+  isolated (`cp main_v12_flat.py main.py`, only `main.py` staged; other
+  shared-row WIP left uncommitted). git HEAD lineage now matches live.) —
+  2026-09-05 (1b resolved flat/keep, `main_v12_flat.py` re-validated and ready for the next slot, 1d root-caused with a Gate-B-passing candidate not yet submitted; later — Workstream A land/animal rule-mining complete; later — **1c submitted**; later — **E3 (1d) folded onto `main.py` as `ENABLE_E3_ANIMAL_RESERVE`, re-gated with a weaker/ambiguous result — see below, don't cite the original +5.0% number anymore**; later — **1e (HERDBATCH) folded onto `main.py`, re-gated NEGATIVE, default set `False`, not submitted**; later — **AM-FEED-1 done (default OFF, committed `7fcfc38`), and 1f/ROUTE-SUBMIT-1 SUBMITTED 2026-09-05 14:30 as sub `56034847` (`main_v12_flat.py`)**)
 - **1c submitted (2026-09-05 09:45, sub `56029879`, `main_v12_flat.py`, PENDING).** Routing fix (Hungarian-assignment executor), re-validated same-day against current `main.py` post-Lever2: 0/719 action mismatches, 95.0% local score-rate. This evicts one of the 2 tracked slots — the pair to compare after 20+ episodes is `56029879` vs `56023304` (P4b+cropflip, currently 527.3). **Checked this session: only 2 episodes accrued (1 validation + 1 public, publicScore 501.5) — far short of the 20+ needed; do not read anything into 501.5 yet.** Do not submit anything else today.
 - **E3 (item 1d) folded onto `main.py` itself (2026-09-05, this session): `ENABLE_E3_ANIMAL_RESERVE` (default `True`) + `E3_OFF_FIXED_MARGIN=300`**, following the standing per-hunk toggle convention. Self-test (E3-OFF copy vs pinned pre-edit `main.py`, 20 pairs) confirmed the toggle mechanism is an exact +0.0%/+$0 no-op. **The real gate on the current lineage (100 pairs, full pool incl. the 4 new archetype bots) reads much weaker than the original probe: +3.0% score delta, 90% CI [+0.0%,+7.0%] (touches zero), margin delta NEGATIVE (-2943), one regression in the closest lineage self-play (`main_v14`, 0/3/1).** Every real hard-bot archetype (animalfactory_v2/wheatflood/premium/animalfarm) now reads 0% score delta with negative margin. Kept ON by default (still net-positive direction, a logically real accounting-bug fix, and per `CLAUDE.md` local can't reliably gate economy changes either way) but **no longer citable as a clean Gate-B pass** — cite `experiments/LEDGER.md`'s new "E3 folded onto main.py + re-gated" row, not the original +5.0%/CI[+1.7,+10.0] read. Next submission slot (once the one-per-day window resets) still goes to `main.py` with this fix included per the existing queue order — flag the weaker re-gate to the user before that submission.
 - **Explicit goal as of 2026-09-05: rank ≤10 (~2850-3010 rating), not "any improvement."** The §1 queue below (one hand-tuned constant per submission, ~2-3 day ladder-gated read, ~15-20 reads left before deadline) cannot reach that bar even in principle — see `docs/PLAN_TOP10.md`'s "Why" section for the math. §1 items still get done (they're free/queued), but the three levers in `PLAN_TOP10.md` (top-10-caliber local opponent from `top10_ladder/` replays, computed marginal-value estimator replacing hardcoded priority constants, routing fix as the execution substrate) are now the actual priority. Start there, not at 1d.
@@ -280,7 +367,21 @@ Statuses: `ready`, `claimed`, `running`, `done`, `rejected`, or `blocked`.
 - **Ladder rank:** ~5424/7533 as of the 2026-09-04 audit (`docs/PLAN_LADDER_NEXT.md`) — **re-check live**, don't trust this number past a few days.
 - **`56016363`** (v11+feedfloor, anchor, submitted 2026-09-04 16:29): **508.3** on **30 episodes** (15W-0T-15L, 50% score-rate; animal_factory 3-12/20%).
 - **`56023304`** (P4b+cropflip, submitted 2026-09-05 02:35): **515.6** on **25 episodes** (11W-0T-14L, 44% score-rate; animal_factory 3-11/21%, other 6-2/75%, wheat_flood 2-1/67%).
-- **`56029879`** (main_v12_flat.py, routing fix, submitted 2026-09-05 09:45): **557.1** on **23 episodes** (11W-0T-12L, 48% score-rate; animal_factory 6-11/35%, other 4-1/80%, wheat_flood 1-0/100%). **New baseline (1c resolved KEEP, see §1).**
+- **`56029879`** (main_v12_flat.py, routing-only fork, submitted 2026-09-05 09:45): **re-read 2026-09-06: 522.6** on **30 episodes** (13W-0T-17L, 43% score-rate; animal_factory 6-15/29%, other 4-1/80%, wheat_flood 3-1/75%). Second tracked slot; the losing side of the 1f compare. (Earlier 23-ep read was 557.1 / 48% / 35% — regressed toward the mean as episodes accrued.)
+- **`56034847`** (main_v12_flat.py, routing re-port onto current `main.py` =
+  routing + Lever2 + E3 + TXCASH + STRATEGY_MODE/ANTI_META toggles; **item 1f**,
+  submitted 2026-09-05 14:30): **ladder read 2026-09-06 — 572.9** on **24
+  episodes** (12W-0T-12L, 50% score-rate; animal_factory 5-9/36%, other 5-3/63%,
+  wheat_flood 2-0/100%). Beats baseline `56029879` (522.6 / 43% / 29%) on ladder
+  score (+50), overall score-rate (+7pp), and the animal_factory cluster (+7pp)
+  — clears the 1b keep-if-flat-or-better rule decisively. **KEEP; `56034847` is
+  the new comparison baseline.** `main_v12_flat.py` was submitted directly;
+  `main.py` on disk still NOT promoted (git HEAD `7fcfc38`) — the queued
+  `cp main_v12_flat.py main.py` + commit is the one open action (deferred:
+  working tree has unrelated uncommitted WIP from other shared-work rows —
+  `bots/_kagri_botlib.py`, `bots/bot_factory_v3.py`, `PUBLIC_AGENT_STRATEGY_CATALOG.md`,
+  plus in-progress `main_v12_flat.py`/`CLAUDE.md` edits — so committing needs
+  user direction on scope).
 - **1b resolved (2026-09-05, 23+30 eps, re-read via `download_episodes.py` + `tools/ladder_analyze.py`):** `56023304` (48%) vs anchor `56016363` (50%) — **flat within noise**, not the "trending toward regress" read the 10-episode sample suggested. Per the stated decision rule (keep if flat-or-better), **`56023304` stays incumbent; no rollback.** The load-bearing fact from this read isn't the overall rate, it's that **animal_factory win-rate is ~20-23% on both submissions** — identical within noise despite the land-cap/crop-mix constant change between them. This confirms the `IMPACT_RANKED_LEADERBOARD_PLAN.md` diagnosis directly: hand-tuned-constant patches (P4b, cropflip, Lever 2's computed gate) are not moving the dominant loss cluster at all. Next submission slot goes to **1c (routing)** per both this file's queue and `PLAN_TOP10.md`'s sequencing — do not spend another slot on a constant-level tweak.
 - **Top of leaderboard:** ~3000 rating (Crop Dusta 3009.3; top-20 band 2850–3010).
 - **Deadline:** 2026-09-30 23:59. $50,000 prize.
@@ -366,10 +467,21 @@ promote/revert by **win-rate**, not coin margin.
       submitted. Full numbers: `experiments/LEDGER.md`'s "HERDBATCH fold +
       re-gate" row.
 
-- [ ] **1f. Re-port routing executor onto current `main.py` (Lever2+E3+
-      STRATEGY_MODE/ANTI_META included) — re-flattened & re-validated
-      2026-09-05, READY, NOT YET SUBMITTED (today's slot already used by
-      1c/`56029879`).** Regenerated `main_v12_flat.py` via
+- [x] **1f. Re-port routing executor onto current `main.py` (Lever2+E3+
+      STRATEGY_MODE/ANTI_META included) — SUBMITTED 2026-09-05 14:30 as sub
+      `56034847` (`main_v12_flat.py`). RESOLVED 2026-09-06: KEEP.** Ladder read
+      (`download_episodes.py` + `tools/ladder_analyze.py 56034847`): **572.9,
+      24 eps, 12W-0T-12L, 50% score-rate; animal_factory 5W-9L / 36%, other
+      5W-3L / 63%, wheat_flood 2W-0L.** Baseline `56029879` (routing-only fork)
+      re-read at 30 eps: **522.6, 43% score-rate, animal_factory 29%.** 1f wins
+      on ladder score (+50), overall score-rate (+7pp), and the dominant
+      animal_factory loss cluster (+7pp) — clears the 1b flat-or-better rule
+      decisively. **`56034847` is the new comparison baseline.** Disk promote
+      **DONE 2026-09-06 (commit `033990f`)**: `cp main_v12_flat.py main.py`,
+      isolated commit (only `main.py` staged; other shared-row WIP left
+      uncommitted). git HEAD lineage now matches the live winning submission. Tracked latest-2 slots are
+      `56034847` + `56029879`; `56023304` evicted. Regenerated `main_v12_flat.py`
+      via
       `tools/flatten_v12.py` against the current `main.py` (picks up
       everything 1c's original flatten predates: Lever2 land gate, E3 reserve
       fix, STRATEGY_MODE selector, ANTI_META/LIVESTOCK_ENGINE toggles).
