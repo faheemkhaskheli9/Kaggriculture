@@ -420,7 +420,7 @@ HERDBATCH_DISCOUNT = 0.6
 HERDBATCH_FEED_DAYS = 2
 HERDBATCH_CASH_FLOOR = 200
 
-ENABLE_MAXHANDS_12 = False
+ENABLE_MAXHANDS_12 = True
 # MAXHANDS-12 (challenger/ CHALLENGER-1 bisection, 2026-09-06,
 # compete_runs/20260906-01*). ON: cap the dawn HIRE target at 12 hands instead
 # of the current 13 for nq>=3 (day 3-26). The `challenger/` v0 knob bisection
