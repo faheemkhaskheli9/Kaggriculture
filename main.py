@@ -503,6 +503,39 @@ EARLY_CASH_GUARD_LAST_DAY = 10
 EARLY_CASH_GUARD_FLOOR_BASE = 150
 EARLY_CASH_GUARD_FLOOR_SLOPE = 120   # floor(day) = 150 + 120*day; d1=270 ... d10=1350
 
+ENABLE_LEAD_AWARE_RISK = False
+# LEAD_AWARE_RISK (PUBLIC_AGENT_STRATEGY_CATALOG.md family 15: "lead/deficit-aware
+# risk -- optimise probability of winning, not maximum average terminal coins").
+# Rating is Bradley-Terry over win/loss/tie only; the coin margin is discarded.
+# So once we are safely ahead, extra expected coins buy nothing and the only
+# thing that can still cost the game is variance -- a late opponent surge, a
+# scarcity-price swing, or our own terminal-liquidation / worker-position
+# failure (catalog family 16) leaving premium goods unsold. ON: from mid-game
+# (LEAD_RISK_START_DAY..LEAD_RISK_LAST_DAY), estimate the lead from PUBLIC state
+# only -- both farms' visible money + placed animals + extra quadrants + standing
+# crop tiles, plus our own real shed value -- and when it clears LEAD_RISK_MARGIN
+# in our favour, sell the premium lines (the general crop-sell `else` branch,
+# `prem` items) harder: widen the per-turn cap by LEAD_RISK_SELL_MULT and lower
+# the price floor we hold above by LEAD_RISK_KEEP_MULT, converting standing
+# premium inventory to banked coins sooner. Deliberately ONE-SIDED: the "when
+# behind, hold premium for the scarcity ceiling" half of family 15 is omitted
+# because this env's price curve barely rewards holding inventory (the throttle
+# just delays revenue -- see ENABLE_MKT_DEMAND_MATCH's rejection note), so that
+# lever is weak here and risks craterng our own economy for no gain. OFF path is
+# byte-identical: `lead_risk` initialises to None, the estimator is guarded by
+# `if ENABLE_LEAD_AWARE_RISK ...`, and the sell-sizing overlay is guarded by
+# `if lead_risk == "ahead"` which is never true when the flag is off.
+LEAD_RISK_START_DAY = 18
+LEAD_RISK_LAST_DAY = 26          # day>=26 the endgame branch already dumps
+LEAD_RISK_MARGIN = 10000        # generous deadband: opp shed is invisible, so the
+                                # estimate understates the opponent -- only act on
+                                # a lead too large for that bias to explain.
+LEAD_RISK_ASSET = 220           # value credited per placed animal
+LEAD_RISK_LAND = 900            # value credited per quadrant past the first
+LEAD_RISK_CROP = 18             # value credited per visible standing-crop tile
+LEAD_RISK_SELL_MULT = 1.6       # premium per-turn cap widen when safely ahead
+LEAD_RISK_KEEP_MULT = 0.85      # premium hold-above-price floor relax when ahead
+
 
 def _shape(func, x, T):
     x = max(0.0, x)
@@ -1411,6 +1444,26 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
     # went underfed, and coins vs starter fell ~45%. See docs/PLAN_LADDER_V10.md.)
     wheat_floor = (2 * n_placed + 4) if (USE_ANIMALS and n_placed and day < 28) else 0
     dm_demand = demand_counts(obs) if ENABLE_MKT_DEMAND_MATCH else None
+    # LEAD_AWARE_RISK: coarse public-state lead estimate, computed once per call.
+    lead_risk = None
+    if ENABLE_LEAD_AWARE_RISK and LEAD_RISK_START_DAY <= day < LEAD_RISK_LAST_DAY:
+        def _vis_worth(farm):
+            an = cr = 0
+            for row in farm.get("tiles", []) or []:
+                for t in row:
+                    if isinstance(t, dict):
+                        if t.get("animal"):
+                            an += 1
+                        elif t.get("crop"):
+                            cr += 1
+            nq = len(farm.get("unlocked_quadrants", []) or [])
+            return (float(farm.get("money", 0)) + an * LEAD_RISK_ASSET
+                    + max(0, nq - 1) * LEAD_RISK_LAND + cr * LEAD_RISK_CROP)
+        my_shed_val = sum(int(q) * price_at(it, mkt_inv.get(it, 10000))
+                          for it, q in shed.items() if it in BASE and int(q) > 0)
+        opp_worth = _vis_worth(obs["farms"][1 - obs["player"]])
+        if (_vis_worth(me) + my_shed_val) - opp_worth >= LEAD_RISK_MARGIN:
+            lead_risk = "ahead"
     for item, qty in list(shed.items()):
         qty = int(qty)
         if item == "WHEAT":
@@ -1457,6 +1510,11 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
                 if hour % 4 == 0:          # shop consumption tick
                     absorb += MKT_DEMAND_MATCH_PER_SHOP * dm_demand[item]
                 cap = min(cap, max(MKT_DEMAND_MATCH_FLOOR, int(absorb)))
+            if lead_risk == "ahead" and prem:
+                # safely ahead -> margin no longer scores; bank premium sooner
+                # and shrink variance (see ENABLE_LEAD_AWARE_RISK).
+                cap = int(cap * LEAD_RISK_SELL_MULT)
+                keep *= LEAD_RISK_KEEP_MULT
             amount = 0
             while amount < min(qty, cap) and price_at(item, inv0 + 2 * amount) >= keep:
                 amount += 1
