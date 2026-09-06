@@ -17,19 +17,23 @@
 > `docs/IMPACT_RANKED_LEADERBOARD_PLAN.md`), and logged in `experiments/LEDGER.md`
 > like any other candidate.
 
-> **Current operating plan (2026-09-05):** use
-> `docs/IMPACT_RANKED_LEADERBOARD_PLAN.md`, with the shared-agent execution
-> rules in `docs/PLAN_TO_3000.md`. E0 paired A/B evaluation is complete.
-> `AM-FEED-1` is done (default OFF, not promoted). Every remaining strategy row
-> in the work board is done-not-promoted / blocked / rejected / ready-for-ladder
-> — all now gated on a Kaggle slot + user approval, not on more local work. The
-> separately validated routing
-> refresh (item 1f, sub `56034847`) **resolved 2026-09-06: KEEP** — ladder read
-> 572.9 / 24 eps / 50% score-rate / animal_factory 36% vs baseline `56029879`
-> 522.6 / 43% / 29%, clears the flat-or-better rule on every axis. `main.py` on
-> disk still needs `cp main_v12_flat.py main.py` + commit to match the live
-> lineage (deferred — unrelated shared-row WIP in the tree). No candidate is
-> promoted from unpaired coin results.
+> **Current operating plan (2026-09-06, Phase A done — routing REVERTED):**
+> `docs/PLAN_LADDER_NEXT_2.md`. Phase A ladder read **overturned the routing
+> KEEP call**: with full episode counts, the **non-routing v15 build**
+> (`56039865` = `0aa1da6:main.py`, attributed via `git reflog` — NOT `033990f`
+> as earlier notes assumed) reads **590.2 / 30 eps / 57% score-rate /
+> animal_factory 63% (10-0-6)**, while the routing build (`56034847`) decayed to
+> **565.7 / 27 eps / 48% / animal_factory 31% (5-0-11)** and routing+MAXHANDS-12
+> (`56044961`) crashed to **499.7 (2 eps, both near-ties)**. Routing regressed
+> the ladder ~25 pts and halved the animal_factory win-rate; that archetype is
+> ~56% of ladder games. **`main.py` disk reverted to `0aa1da6:main.py`
+> (non-routing v15) 2026-09-06**; routing build kept as `agents/main_v16_routing.py`,
+> reverted winner as `agents/main_v16.py`. `PLAN_LADDER_NEXT_2` Phase B
+> ("execution efficiency / routing tuning") is now dead and needs a rewrite —
+> the question is what in the non-routing build wins animal_factory 63% and how
+> to press it. Gates A–D and the impact formula still come from
+> `docs/IMPACT_RANKED_LEADERBOARD_PLAN.md` §3. `56044961` currently occupies a
+> live tracked slot at a decaying 499.7 — no re-submission without user approval.
 
 > **Outcome target:** current live score 553.2 → **1553.2+**. The operating
 > plan's §8 replacement-policy program is the primary path. Incremental items
@@ -113,9 +117,9 @@ approval.
 | R3-HERD-1 | Explain/test staged herd-cap signal alone | claude 2026-09-05T18:36Z | done (not promoted) | `experiments/candidate_top10rules.py` | **Closed 2026-09-05: explained, not promoted.** Root cause found+fixed (crew-size formula used reservation target not actual herd, `ENABLE_R3_CREW_FIX`, commit `a729abf`). Isolated crew-fix-alone test (R3 herd-cap OFF) vs `main.py`: score delta -2.5% CI[-6.2%,+1.2%], margin -2819, wheatflood/top10clone regress — the fix only pays off paired with R3's herd-cap bump, not standalone. Do not port the fix onto `main.py` alone; take it bundled with R3 if R3 itself ever clears Gate B. See `experiments/LEDGER.md`. |
 | POLICY-RARE-1 | Explicit BUY_LAND/BUY_ANIMAL timing/value controller | claude 2026-09-05T19:45Z | land-half done (default OFF), animal-half open | `main.py` (`ENABLE_POLICY_LAND_TIMING` block only — no-op at default) | Episode-held-out benchmark plus paired validation; safety layer unchanged. Land half: see snapshot note. Animal half (herd-cap schedule) overlaps R3-HERD-1 — left for that owner or a later slot. |
 | AM-HERDSCALE-1 | Cap the per-head escalation in the BUY_ANIMAL affordability gate | claude 2026-09-05T14:06Z | ready-for-ladder | `scratchpad/cand_fscale.py` (not on main.py) | Local no-op (0 regressions, cash floor not reproducible locally); needs a ladder slot. User approval required. |
-| ROUTE-SUBMIT-1 | Promote validated routing refresh | user | **done 2026-09-06** — ladder KEEP + disk promoted | `main_v12_flat.py`, `main.py` | Sub `56034847` **572.9 / 24 eps / 50% score-rate / animal_factory 36%** beats baseline `56029879` (522.6 / 43% / 29%) on every axis. `main.py` on disk promoted 2026-09-06 (commit `033990f`, isolated — `cp main_v12_flat.py main.py`, only `main.py` staged; other shared-row WIP left uncommitted). git HEAD now matches live lineage. |
+| ROUTE-SUBMIT-1 | Promote validated routing refresh | user | **REVERTED 2026-09-06** — ladder read at full eps rejects routing | `main_v12_flat.py`, `main.py`, `agents/main_v16*.py` | Early 24-ep read (572.9) that drove the KEEP call decayed to **565.7 / 27 eps / 48% / animal_factory 31%** as episodes accrued. Non-routing v15 (`56039865`) reads **590.2 / 30 eps / 57% / animal_factory 63%** — routing regressed the ladder ~25 pts and halved the dominant-archetype win-rate. `main.py` disk reverted to `0aa1da6:main.py` (non-routing v15); routing build preserved as `agents/main_v16_routing.py`, reverted winner as `agents/main_v16.py`. See LEDGER "ROUTING REVERTED" row. |
 | AM-HERDRAMP-1 | Cap early herd acquisition rate (day-0 binge) | claude 2026-09-05T14:06Z | rejected | `main.py` (reverted clean) | Gate B failed x2 — see snapshot note below |
-| CHALLENGER-1 | §8 replacement-policy program — Workstream A/B challenger (replay-derived + BC cadence controllers; safety + execution reuse `main.py`) | claude 2026-09-06T02:30Z | v0 rejected / v1 built not wired / **MAXHANDS-12 flipped ON + SUBMITTED `56044961`** | `challenger/` (`agent.py`, `strategy.py`, `clone.py`, `clone_model.json`, `__init__.py`, `README.md`); `main.py` (`ENABLE_MAXHANDS_12` block only) | **v0 (mined herd/quad/hand schedule) — Gate-B FAILED, −10.4% vs `main.py`; bisected**: HERD schedule = the whole regression (−10.2%, CI[−16.4,−3.9]); QUAD neutral; HAND-cap-12 the only positive. Mined-schedule controller rejected. **`ENABLE_MAXHANDS_12` flipped ON (commit `9f36ac0`) and SUBMITTED 2026-09-06 02:28 as sub `56044961` (`main.py`, PENDING).** Pre-submit bug-check (60 paired vs HEAD OFF): +5.0% score delta CI[+1.7,+10.0], 3/57/0 improved/same/regressed, 0 errors, margin +4048; every external archetype flat +0.0% (self-play-bucket only — the pattern repo history says often evaporates on ladder, so this spends a slot to get a real read). Evicts `56034847`; tracked latest-2 = `56044961` + `56039865` (580.8, the unexplained out-of-workflow submission — see snapshot). **Next: wait 20+ eps, `tools/ladder_analyze.py 56044961` vs `56039865`, keep/revert per the 1b flat-or-better rule; if reverted, flip the flag back OFF + commit.** **v1 (BC cadence controller) — built, verified, NOT wired.** `challenger/clone.py` trains 1 binary NB per learnable family (HIRE/BUY_SEED/SELL); held-out HIRE F1 **0.774**, BUY_SEED 0.496, SELL 0.505. Only HIRE usable. Remaining if pursued: `live_features()` obs→feature bridge + `EpisodeHistory` + `agent.py` HIRE gate + A/B — **flag ceiling to user first.** commits `c2d3857` + `f79e3d0` + `9f36ac0`. |
+| CHALLENGER-1 | §8 replacement-policy program — Workstream A/B challenger (replay-derived + BC cadence controllers; safety + execution reuse `main.py`) | claude 2026-09-06T02:30Z | v0 rejected / v1 built not wired / **MAXHANDS-12 REJECTED on ladder** | `challenger/` (`agent.py`, `strategy.py`, `clone.py`, `clone_model.json`, `__init__.py`, `README.md`); `agents/main_v16_routing.py` (`ENABLE_MAXHANDS_12` block — no longer on `main.py`) | **v0 (mined herd/quad/hand schedule) — Gate-B FAILED, −10.4% vs `main.py`; bisected**: HERD schedule = the whole regression; QUAD neutral; HAND-cap-12 the only local positive (self-play-bucket only). **MAXHANDS-12 submitted as `56044961` 2026-09-06 02:28 → ladder REJECTED 2026-09-06: 499.7, only 2 eps (0-0-2, both near-ties), stacked on the routing base that itself regressed. Flag block now lives only on `agents/main_v16_routing.py` — reverted `main.py` (`0aa1da6`) never carried it.** `56044961` still occupies a live tracked slot at 499.7. **v1 (BC cadence controller) — built, verified, NOT wired.** `challenger/clone.py`: held-out HIRE F1 **0.774**, BUY_SEED 0.496, SELL 0.505 — only HIRE usable. Remaining if pursued: `live_features()` obs→feature bridge + `EpisodeHistory` + `agent.py` HIRE gate + A/B — **flag ceiling to user first.** commits `c2d3857` + `f79e3d0` + `9f36ac0`. |
 
 Statuses: `ready`, `claimed`, `running`, `done`, `rejected`, or `blocked`.
 
@@ -329,23 +333,30 @@ Statuses: `ready`, `claimed`, `running`, `done`, `rejected`, or `blocked`.
   status, and reward (final money $53,388); compile/diff checks and a four-game
   smoke run also completed with zero crashes/errors. This foundation milestone
   is now superseded by the strategy-intent/livestock snapshot immediately above.
-- **`56039865`** (`main.py`, submitted 2026-09-05 20:02): **580.8** — best score
-  on the board and a tracked slot, but **submitted outside this repo's
-  workflow**: no commit message, no ledger row, no TASKS note, and no git
-  activity after `033990f`. Contents unverified (presumably `033990f` `main.py`
-  ± local edits). Treat as an opaque baseline.
-- **`56044961`** (`main.py`, `ENABLE_MAXHANDS_12` ON, commit `9f36ac0`,
-  submitted 2026-09-06 02:28): **PENDING.** CHALLENGER-1 MAXHANDS-12 candidate —
-  dawn HIRE cap 12 vs 13 for nq>=3. Local bug-check +5.0% CI[+1.7,+10.0] paired
-  vs flag-OFF, 0 regressions, but self-play-bucket only. Tracked latest-2 now
-  `56044961` + `56039865`; `56034847` (565.7) evicted. Read at 20+ eps vs
-  `56039865`, keep/revert per the 1b flat-or-better rule; flip flag back OFF +
-  commit if reverted.
-- **Last updated:** 2026-09-06 (**CHALLENGER-1 MAXHANDS-12 submitted** as
+- **`56039865`** (`main.py` = `0aa1da6:main.py`, submitted 2026-09-05 20:02):
+  **590.2 / 30 eps / 17W-0T-13L / 57% score-rate; animal_factory 10W-0T-6L /
+  63%, wheat_flood 3-0, other 4-7.** **ATTRIBUTED 2026-09-06** via `git reflog`
+  (HEAD was `0aa1da6` at submit time — the non-routing v15 lineage build: v11 +
+  P4b/cropflip + Lever2 + E3 + TXCASH + feedfloor + STRATEGY_MODE selector and
+  rejected land-timing/demand-match toggles all default OFF). **Best agent on
+  the board and the confirmed reference build.** `main.py` on disk reverted to
+  this 2026-09-06 (also snapshotted `agents/main_v16.py`).
+- **`56044961`** (routing + `ENABLE_MAXHANDS_12` ON, commit `9f36ac0`, submitted
+  2026-09-06 02:28): **REJECTED — 499.7 / 2 eps / 0W-0T-2L** (both near-ties:
+  44.6k v 45.6k, 75.2k v 75.8k). Stacked on the routing base that itself
+  regressed (see ROUTE-SUBMIT-1). Still one of the 2 live tracked slots at a
+  decaying 499.7 — needs a good `main.py` submission to evict it, gated on user
+  approval. Flag block now only on `agents/main_v16_routing.py`.
+- **Last updated:** 2026-09-06 (**PLAN_LADDER_NEXT_2 Phase A — ROUTING REVERTED.**
+  Full-episode ladder reads: non-routing v15 `56039865` **590.2 / 57% /
+  animal_factory 63%** beats routing `56034847` **565.7 / 48% / 31%** and
+  routing+MAXHANDS `56044961` **499.7**. Attributed `56039865` to `0aa1da6:main.py`
+  via reflog. `main.py` disk reverted to `0aa1da6`; `agents/main_v16.py` (winner)
+  + `agents/main_v16_routing.py` (rejected routing build) snapshotted. LEDGER
+  "ROUTING REVERTED" row added. Phase B needs a rewrite. Commit pending.) —
+  earlier 2026-09-06 (**CHALLENGER-1 MAXHANDS-12 submitted** as
   `56044961` — `ENABLE_MAXHANDS_12` flipped ON, committed `9f36ac0`, isolated
-  to `main.py`. Also corrected a stale fact: tracked latest-2 before this were
-  `56039865` (580.8, out-of-workflow) + `56034847` (565.7), NOT
-  `56034847` + `56029879` as prior notes said.) — earlier 2026-09-06 (**1f/ROUTE-SUBMIT-1 fully closed**: ladder read
+  to `main.py`.) — earlier 2026-09-06 (**1f/ROUTE-SUBMIT-1 fully closed**: ladder read
   KEEP — sub `56034847` 572.9 / 24 eps / 50% score-rate / animal_factory 36%
   beats baseline `56029879` 522.6 / 43% / 29% on every axis; `56034847` is the
   new comparison baseline. `main.py` disk promote DONE — commit `033990f`,
