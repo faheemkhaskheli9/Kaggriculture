@@ -434,6 +434,29 @@ ENABLE_MAXHANDS_12 = True
 # a local promote. OFF (default) keeps the derived {1:7,2:10,nq>=3:13} ramp.
 MAXHANDS_12_CAP = 12
 
+ENABLE_ANIMAL_PACING = False
+# ANIMAL-PACING (docs/PLAN_LADDER_NEXT_3.md Lever A, 2026-09-06). ON: for
+# day <= ANIMAL_PACING_LAST_DAY, refuse a BUY_ANIMAL that would leave
+# money < ANIMAL_PACING_CASH_FLOOR after the buy -- a hard post-buy floor
+# distinct from the day-scaled `reserve`, which is only ~200 on days 0-2
+# (min(1400, 200+150*day)) and so never gates the opening binge.
+# tools/trace_crater.py: all 27 losses across 4 builds spend ~$1600 on 4 COW
+# buys in days 0-2 from the $3000 stake, cratering cash to $51-480 by day 2,
+# crater onset day 6-9. This floor only blocks the specific buy that would
+# crater; the herd otherwise grows at its normal E3-gated rate.
+# A cumulative per-day herd cap was also tried (PER_DAY*(day+1)) and DROPPED:
+# 96-pair Gate C read it -2.6..-3.6% score / -163 productive actions /
+# -235 day10 cash / main self-play 4L-of-6 -- throttling total early herd
+# growth deletes the fertilizer->crop engine (same failure as the reverted
+# v8 herd-pace). The floor alone is an exact local no-op (0/96 games differ;
+# these bots never push our early cash sub-$600 during a buy) -- ladder-only
+# EV, same profile as B3/B4/B2P. OFF (default): exact byte no-op -- the
+# pre-existing E3 / E3_OFF gate stays the only animal-buy constraint.
+ANIMAL_PACING_LAST_DAY = 10
+ANIMAL_PACING_CASH_FLOOR = 600  # observed craters land at $51-480; healthy early
+                                # buys clear $600 (1400, a first guess, also
+                                # blocked those and cost economy).
+
 ENABLE_TXCASH_FORECAST = True
 # TXCASH (docs/IMPACT_RANKED_LEADERBOARD_PLAN.md E2 candidate #1: "transactional
 # cash forecast including same-turn sales"). ON: the top-3 highest-value SELL
@@ -1517,6 +1540,12 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
                         afford = money - reserve >= ANIMALS[a][0] + 150 * placed_total
                     else:
                         afford = money >= ANIMALS[a][0] + E3_OFF_FIXED_MARGIN + 150 * placed_total
+                    if (ENABLE_ANIMAL_PACING and day <= ANIMAL_PACING_LAST_DAY
+                            and money - ANIMALS[a][0] < ANIMAL_PACING_CASH_FLOOR):
+                        # day-0..N anti-binge (see config note): block only the
+                        # buy that would crater cash below the floor the tiny
+                        # early `reserve` can't provide.
+                        afford = False
                     if cur < want and afford:
                         buys_hi.append(["BUY_ANIMAL", a, 1])
                         money -= ANIMALS[a][0]
