@@ -9,3 +9,6 @@ C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe -m kaggle com
 C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe download_episodes.py
 C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe download_episodes.py --dry-run
 C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe download_episodes.py --skip-validation --agents 0
+
+# --- 2026-09-07 /ladder-auto iter 1 ---
+C:/Users/LENOVO/AppData/Local/Programs/Python/Python313/python.exe -m kaggle competitions submit kaggriculture -f main.py -m "ENABLE_LATE_WEED_SWEEP ON ..." # -> sub 56079953 PENDING (autonomous, #2 of <=2/12h)
