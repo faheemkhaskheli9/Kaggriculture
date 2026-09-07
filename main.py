@@ -298,7 +298,7 @@ ENABLE_P4C_LATE_WEED = True
 # weeds at priority 2500 (still < comfort-water 2600) instead of 2200, so the
 # late-game field reclaims fallow-turned-weed tiles faster for replanting.
 # OFF holds weed priority at a flat 2200 all game (v7).
-ENABLE_LATE_WEED_SWEEP = False
+ENABLE_LATE_WEED_SWEEP = True
 # LATE-WEED-SWEEP (/ladder-auto iter 1, docs teardown 2026-09-07). EVAL gap:
 # board-best 56044961 carries ~13 weeds at day 25-29 (20-29 in the animal_factory
 # blowout losses) vs a top-10 median of ~0 -- weed accrual correlates with the
