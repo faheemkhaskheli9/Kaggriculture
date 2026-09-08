@@ -547,6 +547,20 @@ ENABLE_TXCASH_FORECAST = True
 # isolation, per the plan's explicit "test exactly one mechanism at a time"
 # rule. OFF restores the pre-fix behaviour (every gate uses raw `money`).
 
+ENABLE_SELL_FIRST_ORDERS = False
+# SELL_FIRST (/ladder-auto iter 3, 2026-09-08) -- close the market-cadence gap to
+# the top-10 ladder agents. analyze_top on the top-10 replays: their first market
+# slot each turn is a SELL 66% of the time vs ours 32% (we lead with HIRE / seed
+# / product buys). Orders process in slot order and >10 per turn are dropped
+# silently, so on a productive dawn turn the hire loop queues ~12 HIRE, pushing
+# the top-3 premium SELLs past the cap -- they only clear an hour later. ON:
+# assemble sells[:3] ahead of `hires` in the final order list so dawn liquidity
+# lands in slots 0-2 before the (self-recovering) hires. Only the day<29,
+# non-terminal branch changes; day>=29 liquidation and the OFF path are byte
+# no-ops. Targets the mid-game cash crater vs animal_factory (deficit onset
+# ~d6 close losses / ~d11-12 blowouts). Local league cannot gate this -- ladder
+# read is the real test; regression check only.
+
 
 def _shape(func, x, T):
     x = max(0.0, x)
@@ -1731,6 +1745,10 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
     if day >= 29:
         # nothing left to invest in; every order slot goes to the terminal dump
         out = sells + hires + buys_hi + buys_lo
+    elif ENABLE_SELL_FIRST_ORDERS:
+        # SELL_FIRST: top-3 premium sells claim slots 0-2 before the (self-
+        # recovering) dawn hires, so cash-in is not pushed past the 10-order cap.
+        out = sells[:3] + hires + buys_hi + buys_lo + sells[3:]
     else:
         out = hires + sells[:3] + buys_hi + buys_lo + sells[3:]
     return out[:10]
