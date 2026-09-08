@@ -188,3 +188,23 @@ forward queue + why each item is/ isn't above the submit bar.
   Verdict: **SUBMITTED `56101006`**. Next: judge `56101006` at ≥20 eps on
   animal_factory win-rate vs `56079953` baseline (52% / af 41% / 584.7);
   build A5 seed-drip in the meantime (queue's next mechanical row).
+
+- **2026-09-08 iter 10 (P0 iteration):** Pipeline audit gate is `IN_PROGRESS`
+  (`STATUS: IN_PROGRESS`, hash `691645a…`) → per invariant I0 this iteration did
+  audit-and-fix only: no agent-improvement build, no new-candidate submission.
+  **P0.1 (`agent()` crash-safety) — BUG FOUND + FIXED:** the live `agent()`
+  except block (`main.py`) swallowed every exception silently — no stderr, no
+  sentinel — so on Kaggle (`debug=False`) a raise is indistinguishable from bad
+  strategy in the replay (the documented #1 failure: v8, ML probe). Fix: added
+  `import traceback` + `traceback.print_exc()` in the fallback. Items 2/3/4 of
+  P0.1 verified clean (fallback dict schema-valid; module scope all literals/
+  defs, no import-time raise; hot path Hungarian O(A·(C+A)²), C≤96 tiles /
+  A≤40 units, well under the 1s budget). Committed `75b72fa`. Pipeline hash
+  bumped to `f2d73e6…`; P0.2–P0.8 still `[ ]`. **I1 note:** tracked Kaggle pair
+  is `56101006` (541.2) + `56089527` (542.9) — neither is peak-or-better (605.1)
+  so I1 reads breached, but `56044961`'s own bytes resubmit (`56078956`) already
+  settled 538.1 on the hardened pool → no resubmit actually restores the peak;
+  `56101006` (A4) is still the pending sub and must reach its 20-ep read.
+  **HELD both slots** (no Class-3 recovery — nothing to recover to). STALL COUNT
+  unchanged at 2. Verdict: **P0.1 BUG-FIXED**. Next: P0.2 (local gate config ==
+  Kaggle stock config).
