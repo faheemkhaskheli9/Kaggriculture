@@ -276,3 +276,54 @@ forward queue + why each item is/ isn't above the submit bar.
   Kaggle CLI unavailable in this env this iter (no fresh ep count pulled — P0
   gate, no judgment due). STALL COUNT unchanged at 2. Verdict: **P0.4 PASS**.
   Next: P0.5 (paired A/B is actually paired + CI is real).
+
+- **2026-09-08 iter 14 (P0 iteration):** Pipeline audit `IN_PROGRESS`, hash
+  matched `ce70a02…` → audit-and-fix only. **P0.5 (paired A/B + CI) — PASS, no
+  bug, no code change.** Subagent traced `compete.py --baseline`: the baseline
+  arm is `dict(payload, agent_path=baseline_path, …)` per candidate game
+  (`:574-579`) so it reuses that game's exact `(opponent, seed, our_seat)`;
+  `paired_summary` hard-asserts pair alignment on those three keys (`:377-379`).
+  CI is a proper paired-difference bootstrap over per-pair `score_delta`
+  (`:387,405-408,423-424`) — not two independent proportion CIs, not unpaired
+  two-sample; n = `len(pairs)`, CRASH in either arm drops the whole pair.
+  `analyze_runs.py --compare` is an unpaired per-opponent W/T/L side diagnostic
+  with no CI — runbook "CI[…]" numbers come only from compete.py. Conclusion:
+  recent A/Bs reading "CI crosses 0" reflect a genuinely small effect vs noise,
+  not a broken pairing throwing away power. P0.5 `[x]`; P0.6–P0.8 `[ ]`.
+  **I1 unchanged:** tracked pair `56101006` (A4 pending) + `56089527` (retired)
+  — no peak-or-better anchor but `56044961` bytes already read 538.1 on the
+  hardened pool so no recovery exists; HELD both slots. Kaggle CLI unavailable
+  in this env this iter (no fresh ep count — P0 gate, no judgment due). STALL
+  COUNT unchanged at 2. Verdict: **P0.5 PASS**. Next: P0.6 (replay-mining tools
+  read the right fields).
+
+- **2026-09-08 iter 15 (P0 iteration):** Pipeline audit `IN_PROGRESS`, hash
+  matched `ce70a02…` → audit-and-fix only. **P0.6 (replay miners read the right
+  fields) — PASS, one methodological bug fixed.** Subagent hand-verified all
+  four tools (`trace_crater`, `trace_cashflow`, `analyze_top`, `ladder_analyze`)
+  against raw replays: step→day = `k//24` / hour `k%24`, **no off-by-one
+  anywhere**; `obs.farms` is the shared full list so `steps[i][0][…]["farms"][seat]`
+  == `steps[i][seat][…]` (verified); seat id via `info.Agents[].Name` vs
+  `ME_NAMES` correct on every sampled replay; "hour 0 money" = start-of-day
+  (post prior-night `_end_of_day`), no overnight money settlement exists,
+  consistent across all four tools; weeds = `kind=="WEED"` in both counters.
+  Hand cross-checks all matched (trace_crater d0 disc −2690=−2690 & d10 money
+  1400=1400; trace_cashflow d10 1400=1400; ladder_analyze d10 via `steps[i][0]`
+  == seat path 1400=1400). **BUG (methodological):** `move%` computed two
+  incompatible ways — `analyze_top.py` counted PASS in the denominator and
+  excluded the farmer (60.2% on the test replay) vs `ladder_analyze.py`
+  excludes PASS and includes the farmer (64.2% same replay) → systematic ~4pt
+  inflation of *our* move% relative to top-10. Hadn't flipped a decision
+  (teardown "63 vs 48" gap is 15pt, far above the 4pt artifact, direction
+  unchanged) but future close comparisons weren't apples-to-apples. **Fix:**
+  aligned `analyze_top.py analyze_farm` to the ladder_analyze convention
+  (include farmer unit, skip PASS) + `assert "PASS" not in hand_token_counts`
+  regression guard; smoke-ran clean. 3 directional limits logged
+  (`trace_crater` day_spend assumes orders committed / drops malformed days;
+  `trace_cashflow` flat $1000 BUY_LAND estimate). Pipeline hash bumped to
+  `f86bad1…`; P0.7–P0.8 `[ ]`. **I1 unchanged:** tracked pair `56101006` (A4
+  pending) + `56089527` (retired) — no peak-or-better anchor but `56044961`
+  bytes already read 538.1 on the hardened pool so no recovery exists; HELD
+  both slots. Kaggle CLI unavailable in this env this iter (no fresh ep count —
+  P0 gate, no judgment due). STALL COUNT unchanged at 2. Verdict: **P0.6
+  BUG-FIXED**. Next: P0.7 (data pulls complete + fresh).

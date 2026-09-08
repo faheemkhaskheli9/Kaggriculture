@@ -71,14 +71,27 @@ def analyze_farm(steps, farm_idx):
 
         final_money = farm["money"]
         act = agent_step["action"]
+        # P0.6: match ladder_analyze.py move% convention exactly — include the
+        # farmer unit, exclude PASS from the denominator — so "our move% vs
+        # top-10" is apples-to-apples across the two tools.
+        units = []
+        fa = act.get("farmer")
+        if isinstance(fa, list) and fa:
+            units.append(fa[0])
         for h in act.get("hands", []):
-            if not h:
+            if isinstance(h, list) and h:
+                units.append(h[0])
+        for tok in units:
+            if tok == "PASS":
                 continue
-            tok = h[0]
             hand_token_counts[tok] += 1
             total_hand_tokens += 1
             if tok in MOVES:
                 move_tokens += 1
+
+    # P0.6 regression guard: PASS must never enter the move% denominator here
+    # (it doesn't in ladder_analyze.py) or the two "move%" numbers diverge again.
+    assert "PASS" not in hand_token_counts, "PASS leaked into analyze_top move% denominator"
 
     return {
         "money_by_day": money_by_day,
