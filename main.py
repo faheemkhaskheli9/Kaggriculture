@@ -314,6 +314,22 @@ ENABLE_LATE_WEED_SWEEP = True
 # league does not reproduce the animal_factory weed pile-up.
 LATE_WEED_SWEEP_DAY = 20
 LATE_WEED_SWEEP_RANGE = 4
+ENABLE_ENDGAME_SWEEP = False
+# ENDGAME-SWEEP (/ladder-auto iter 8, board-best 56079953 teardown 2026-09-08).
+# Replay gap: at day 29 we still leave ~12 mature PLANT tiles + ~14 weeds
+# standing (up to 24 + 28 in blowout losses) -> 26-50 of 75 tiles delivering
+# nothing at season end, while top-10 finish with ~0. 6 of 15 ladder losses are
+# within ~9k coins; harvesting the standing mature crops on the last 1-2 days
+# recovers ~5-15k and plausibly flips 3-5 close games. Root cause: HARVEST is
+# priority < 9000 so the zone-first invariant in assign() keeps an idle hand
+# from crossing to an out-of-zone mature tile while its own (empty) zone still
+# has any pending cell -- unbalanced end-of-season zones strand ripe tiles. ON:
+# from day >= ENDGAME_SWEEP_DAY, exempt HARVEST tasks from the zone restriction
+# so any free hand grabs the nearest ripe tile anywhere. Strictly relaxes a
+# restriction toward MORE harvesting; cannot cut harvest throughput. OFF is an
+# exact byte no-op. Ladder-only EV (local league ends with fields already near-
+# empty).
+ENDGAME_SWEEP_DAY = 28
 ENABLE_LEVER2_LAND_GATE = True
 # Lever 2 land half (docs/PLAN_TOP10.md, a146a5e). ON: gate the 4th quadrant
 # ($4000) on a computed check -- crew coverage capacity (reused from
@@ -2016,8 +2032,10 @@ def assign(obs, me, private, tasks, zones, forced=None):
                 # Keep that invariant for routine work; only true survival
                 # tasks may pull a unit across the farm while its zone is busy.
                 if priority < 9000 and has_zone_task and not in_zone:
-                    row_weights.append(_IMPOSSIBLE)
-                    continue
+                    if not (ENABLE_ENDGAME_SWEEP and day >= ENDGAME_SWEEP_DAY
+                            and action == ["HARVEST"]):
+                        row_weights.append(_IMPOSSIBLE)
+                        continue
                 travel = dist(position, target)
                 step_cost = 25 if in_zone else 40
                 value = priority + (2000 if travel == 0 else 0)
