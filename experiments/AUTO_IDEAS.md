@@ -250,3 +250,29 @@ forward queue + why each item is/ isn't above the submit bar.
   no peak-or-better anchor but `56044961` bytes already read 538.1 on the
   hardened pool so no recovery exists; HELD both slots. STALL COUNT unchanged at
   2. Verdict: **P0.3 PASS**. Next: P0.4 (archetype classifier agreement).
+
+- **2026-09-08 iter 13 (P0 iteration):** Pipeline audit `IN_PROGRESS`, hash
+  matched `ce70a02…` → audit-and-fix only. **P0.4 (archetype classifier
+  agreement) — PASS, no bug, no code change.** Subagent: `classify_opp` in
+  `analyze_runs.py:112-133` and `ladder_analyze.py:88-107` are behaviorally
+  identical (same 7-branch order; animal_factory = `amax>=4 and
+  (FERT+MILK+WOOL)/tot_sells > 0.3`). Both classify **purely from the
+  opponent's replay trajectory** (`ot`/`oa` = animals/plants/sells over days
+  0-29), never from filename or agent name → a local `bot_animalfactory_v2`
+  game and a real ladder `animal_factory` game go through the *same* test, so
+  local↔ladder "vs animal_factory" rows are comparable by construction.
+  `classify_ladder.py` is not a classifier (hardcoded `SUB`, raw int tags,
+  never emits an af row). `other` is a real labeled bucket kept in W/T/L
+  totals + the per-arch dict — the af denominator is legitimately just
+  af-classified games in both tools (symmetric); replay-load failures
+  `continue` out of *all* buckets → no af-specific denominator shrink. 2
+  limits logged (P0.4): (a) `classify_opp` duplicated verbatim across two
+  files — drift risk if either is edited; (b) a hybrid like `bot_factory_v3`
+  can behaviorally miss the af bucket if its FERT+MILK+WOOL sell fraction
+  ≤0.30 — acceptable, same test applied to ladder replays. P0.4 ticked `[x]`;
+  P0.5–P0.8 `[ ]`. **I1 unchanged:** tracked pair `56101006` (A4 pending) +
+  `56089527` (retired) — no peak-or-better anchor but `56044961` bytes already
+  read 538.1 on the hardened pool so no recovery exists; HELD both slots.
+  Kaggle CLI unavailable in this env this iter (no fresh ep count pulled — P0
+  gate, no judgment due). STALL COUNT unchanged at 2. Verdict: **P0.4 PASS**.
+  Next: P0.5 (paired A/B is actually paired + CI is real).
