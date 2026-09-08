@@ -108,6 +108,7 @@ Design notes (see SCORE_IMPROVEMENT_PLAN.md for the full rationale):
   shed round-trips except during final-day liquidation.
 """
 import math
+import traceback
 from collections import Counter
 
 # seed cost, first_yield_day, max_yield_day, ongoing, plant-by day
@@ -2152,6 +2153,9 @@ def agent(obs):
         market = market_orders(obs, me, private, counts, n_units)
         return {"farmer": unit_actions[0], "hands": unit_actions[1:], "market": market}
     except Exception:
+        # DURABLE crash marker: a raise here otherwise falls back to all-PASS
+        # and is indistinguishable from bad strategy in the replay (P0.1).
+        traceback.print_exc()
         try:
             n_hands = len(obs["farms"][obs["player"]].get("hands", []))
         except Exception:
