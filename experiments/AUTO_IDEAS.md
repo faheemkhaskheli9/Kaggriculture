@@ -208,3 +208,27 @@ forward queue + why each item is/ isn't above the submit bar.
   **HELD both slots** (no Class-3 recovery — nothing to recover to). STALL COUNT
   unchanged at 2. Verdict: **P0.1 BUG-FIXED**. Next: P0.2 (local gate config ==
   Kaggle stock config).
+
+- **2026-09-08 iter 11 (P0 iteration):** Pipeline audit `IN_PROGRESS` (hash
+  matched `f2d73e6…`) → audit-and-fix only. **P0.2 (compete.py config parity) —
+  PASS on stock config, BUG on the pool.** Subagent verified episodeSteps 720 /
+  actTimeout 1 / startingMoney 3000 / turnsPerDay 24 / maxMarketOrdersPerTurn 10
+  all == engine JSON defaults; `debug=False` on the ladder path (`--debug`
+  store_true default False, never passed); seat = per-game `rng.randint(0,1)`;
+  seed per-game 9-digit random, recorded to manifest + replay filename;
+  `agents/*.py` and `contenders/c_*.py` globbed. **BUG:** `DEFAULT_POOL` was a
+  hand-maintained 13-bot list that silently omitted `bots/bot_factory_v3.py`
+  (real-ladder-mined animal_factory proxy, worst matchup) and
+  `bots/bot_top10clone.py` (2850-3010-rated config) — the gate was missing its
+  two most ladder-representative opponents. Fix: `DEFAULT_POOL` now globs
+  `bots/bot_*.py` + an `assert _disk_bots <= set(DEFAULT_POOL)` regression
+  guard; committed `bot_factory_v3.py` (was untracked). Smoke: both bots load &
+  play 0-err — but `main.py` beats `bot_factory_v3` **3-0 / +68k avg / 100%**
+  and `bot_top10clone` +88k → **Documented limit:** the local pool still can't
+  reproduce the ladder crater; a Class-2 A/B measures self-play, not the loss
+  mechanism the teardowns name. Recorded in PIPELINE_AUDIT.md + knowledge-base/07.
+  Pipeline hash bumped to `ce70a02…`; P0.3–P0.8 `[ ]`. **I1 unchanged:** tracked
+  pair `56101006` (A4 pending, publicScore 525.0) + `56089527` (542.9 retired) —
+  neither peak-or-better, but `56044961` bytes already read 538.1 on the
+  hardened pool so no recovery exists; HELD both slots. STALL COUNT unchanged
+  at 2. Verdict: **P0.2 BUG-FIXED**. Next: P0.3 (W/T/L / score-rate math).

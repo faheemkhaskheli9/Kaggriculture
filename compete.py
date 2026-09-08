@@ -43,22 +43,25 @@ SEED_LO, SEED_HI = 100_000_000, 999_999_999  # inclusive 9-digit range
 # Opponent models that beat our agent on the real ladder (see PLAN_3000_v4.md
 # + PLAN_LADDER_ECON.md s2: animal_factory is 56% of ladder games and our worst
 # matchup, so bot_animalfactory_v2 -- the strong proxy -- carries extra weight).
+# P0.2 pipeline audit (2026-09-08): the pool was a hand-maintained list that
+# silently omitted bots/bot_factory_v3.py (real-ladder-mined animal_factory, the
+# documented worst matchup) and bots/bot_top10clone.py (2850-3010-rated clone) --
+# exactly the two ladder-representative opponents the gate most needs. Glob
+# bots/bot_*.py so a committed opponent can never again be excluded by omission.
 DEFAULT_POOL = [
-    "bots/bot_animalfactory_v2.py",
-    "bots/bot_animalfarm.py",
-    "bots/bot_melonmono.py",
-    "bots/bot_premium.py",
-    "bots/bot_wheatflood.py",
-    "bots/bot_diversified.py",
-    "bots/bot_hoarder.py",
-    "bots/bot_tomatorush.py",
-    "bots/bot_woolfarm.py",
+    *sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "bots").glob("bot_*.py")),
     "contenders/c_animalfactory.py",
     "contenders/c_premium.py",
     "contenders/c_v5clone.py",
     "contenders/c_wheatflood.py",
     "starter",
 ]
+# Regression guard (P0.2): every bot on disk must be in the pool.
+_disk_bots = {p.relative_to(ROOT).as_posix() for p in (ROOT / "bots").glob("bot_*.py")}
+assert _disk_bots <= set(DEFAULT_POOL), (
+    "compete.py DEFAULT_POOL is missing bots on disk: "
+    + ", ".join(sorted(_disk_bots - set(DEFAULT_POOL)))
+)
 # Discover versioned agents automatically so newly archived strategies are
 # immediately represented in local competition runs.
 LINEAGE = sorted(

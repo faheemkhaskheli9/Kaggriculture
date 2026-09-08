@@ -148,6 +148,16 @@ is a real bug, not noise (`docs/PLAN_LADDER_V10.md` §3). So: `compete.py` +
 real gate is a ladder submission — one attributable change at a time, compared
 with `ladder_analyze.py` after ~15–20 episodes.
 
+**P0.2 pipeline audit (2026-09-08):** even the two purpose-built strong
+opponents — `bots/bot_factory_v3.py` (mined from the 12 real animal_factory
+losses on sub 56029879) and `bots/bot_top10clone.py` (2850-3010-rated config) —
+do **not** reproduce the ladder loss mechanism: `main.py` beats `bot_factory_v3`
+3-0 / +68k avg and `bot_top10clone` +88k. The scripted engine "can't ride the
+escape spiral" (bot docstrings). So a `compete.py` A/B measures self-play +
+weak-archetype play, not the mid-game cash crater. `compete.py` `DEFAULT_POOL`
+now globs `bots/bot_*.py` (was a hand-list that silently dropped both) with an
+`assert` guard, but that closes the *omission*, not the *fidelity* gap.
+
 ## Kaggle CLI workflow
 
 ```bash
