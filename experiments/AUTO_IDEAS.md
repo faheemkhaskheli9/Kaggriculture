@@ -232,3 +232,21 @@ forward queue + why each item is/ isn't above the submit bar.
   neither peak-or-better, but `56044961` bytes already read 538.1 on the
   hardened pool so no recovery exists; HELD both slots. STALL COUNT unchanged
   at 2. Verdict: **P0.2 BUG-FIXED**. Next: P0.3 (W/T/L / score-rate math).
+
+- **2026-09-08 iter 12 (P0 iteration):** Pipeline audit `IN_PROGRESS`, hash
+  matched `ce70a02…` → audit-and-fix only. **P0.3 (W/T/L / score-rate math) —
+  PASS, doc-only, no bug.** Verified: score-rate = `(W + 0.5·T)/n` **identically**
+  in `analyze_runs.py:256` (`_rate`) and `ladder_analyze.py:157` — no local/ladder
+  metric mismatch (the plan's "prime suspect for the churn"). WIN/TIE/LOSS
+  consistent in both: strict final-reward (`== farm["money"]`) comparison,
+  exact-equality → TIE (maps to Kaggle Bradley-Terry). CRASH games: counted as
+  neither W/T/L but kept in `len(rows)` by `analyze_runs.py._wtl` → score as a
+  loss (0.0), conservative, **no score-rate inflation**; `n` never corrupted.
+  Two cosmetic limits recorded in PIPELINE_AUDIT.md (compete.py's own stdout
+  summary excludes CRASH from its denominator while the gating tool includes it;
+  partial-errored non-CRASH games keep a money-based W/T/L) — neither affects a
+  promote/revert decision. No code change. P0.3 ticked `[x]`; P0.4–P0.8 `[ ]`.
+  **I1 unchanged:** tracked pair `56101006` (A4 pending) + `56089527` (retired) —
+  no peak-or-better anchor but `56044961` bytes already read 538.1 on the
+  hardened pool so no recovery exists; HELD both slots. STALL COUNT unchanged at
+  2. Verdict: **P0.3 PASS**. Next: P0.4 (archetype classifier agreement).
