@@ -14,3 +14,6 @@ C:\Users\LENOVO\AppData\Local\Programs\Python\Python313\python.exe download_epis
 C:/Users/LENOVO/AppData/Local/Programs/Python/Python313/python.exe -m kaggle competitions submit kaggriculture -f main.py -m "ENABLE_LATE_WEED_SWEEP ON ..." # -> sub 56079953 PENDING (autonomous, #2 of <=2/12h)
 
 2026-09-08 07:53 PST  py -3.13 -m kaggle competitions submit kaggriculture -f main.py  # A3 ENABLE_SELL_FIRST_ORDERS ON -> sub 56089527 (PENDING), evicts 56078956; /ladder-auto iter 5, autonomous 1 of <=2/12h
+
+# 2026-09-08 /ladder-auto iter 9 -- submit A4 ENDGAME-SWEEP
+py -3.13 -m kaggle competitions submit kaggriculture -f main.py -m "A4 ENABLE_ENDGAME_SWEEP ON ..." # -> 56101006 PENDING (evicts board-best anchor 56079953 from tracked pair; pair now 56101006 + 56089527/542.9)
