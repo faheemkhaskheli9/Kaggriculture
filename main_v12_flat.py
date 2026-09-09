@@ -309,6 +309,30 @@ ENABLE_LEVER2_LAND_GATE = True
 LEVER2_LAND_GATE_OFF_DAY_LO, LEVER2_LAND_GATE_OFF_DAY_HI = 8, 20
 LEVER2_LAND_GATE_OFF_FILL = 0.62
 LEVER2_LAND_GATE_OFF_N_UNITS = 12
+ENABLE_POLICY_LAND_TIMING = False
+# POLICY-RARE-1 (ml/artifacts/top_policy_rules.json, 18 verified top-10 farms).
+# ON: gate the Q2/Q3 land unlocks on the mined top-10 timing -- a day floor plus
+# a higher current-fill bar -- replacing the loose flat `fill>=0.55` with no day
+# floor (a threshold picked to be permissive, not derived). Mined: Q2 unlocks
+# day 5-6 at ~76% fill (median 19/25 planted); Q3 unlocks day 8-11 (median 11)
+# at ~30-34 planted (~62% of 2 quadrants); Q4 never (0/17). We were expanding
+# land earlier and looser than the top farms, thinning an already-stretched
+# crew (EVAL-FACTORY-1: our movement 63% vs top-10 41-52%). The money gate is
+# left byte-identical to OFF so this isolates *timing* (day + fill) only.
+# 80-pair frozen adversarial-v1 A/B (--pick-seed 260906, ON vs HEAD): score
+# delta +3.1% but 90% CI [-0.6%, +7.5%] crosses zero; every external archetype
+# at exactly +0.0% score delta (all 4 flips were `main` self-play); margin
+# delta -395 with one bot_animalfactory_v2 regression. plant->weed -3.8 and
+# movement -1.0% confirm the crew-thinning hypothesis directionally, but it
+# does not convert to score-rate locally -- the standing "local can't gate an
+# economy change" wall. Default OFF: kept in code for a dedicated ladder A/B
+# when a submission slot frees, not promoted on this read. OFF restores the
+# flat gate (`day<=18 and fill>=0.55 and money>=cost+400+200*nth`).
+POLICY_LAND_TIMING_OFF_FILL = 0.55
+POLICY_LAND_Q2_DAY = 5
+POLICY_LAND_Q2_FILL = 0.72
+POLICY_LAND_Q3_DAY_LO, POLICY_LAND_Q3_DAY_HI = 8, 13
+POLICY_LAND_Q3_FILL = 0.62
 ENABLE_LEVER2_CROP_MIX = True
 # Lever 2 crop-mix half (docs/PLAN_TOP10.md, a146a5e). ON: for day>=7, greedily
 # fill plant slots by `_crop_tile_value()` (real engine growth/price math)
@@ -1384,7 +1408,15 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
         cost = (1000, 2000, 4000)[nth]
         fill = sum(counts.values()) / max(1, open_tiles)
         if nth < 2:
-            ok = day <= 18 and fill >= 0.55 and money >= cost + 400 + 200 * nth
+            if ENABLE_POLICY_LAND_TIMING and nth == 0:            # Q2
+                ok = (day >= POLICY_LAND_Q2_DAY and fill >= POLICY_LAND_Q2_FILL
+                      and money >= cost + 400)
+            elif ENABLE_POLICY_LAND_TIMING:                       # Q3
+                ok = (POLICY_LAND_Q3_DAY_LO <= day <= POLICY_LAND_Q3_DAY_HI
+                      and fill >= POLICY_LAND_Q3_FILL and money >= cost + 600)
+            else:
+                ok = (day <= 18 and fill >= POLICY_LAND_TIMING_OFF_FILL
+                      and money >= cost + 400 + 200 * nth)
         elif ENABLE_LEVER2_LAND_GATE:
             # Lever 2 (docs/PLAN_TOP10.md): computed ROI instead of a
             # hardcoded hands bar. P4b (TOP10_TEARDOWN finding 1) found

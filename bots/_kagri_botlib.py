@@ -81,6 +81,10 @@ def make_agent(config):
         "animal_buffer_base": 500,
         "animal_buffer_per_head": 120,
         "animal_min_quadrants": None,   # None -> min(2, quad_target(day))
+        # None -> reserve all target-herd tiles upfront (original). An int ->
+        # cap the reservation so at least that many plantable tiles stay free
+        # on the currently-unlocked field (herd grows as land opens).
+        "animal_reserve_leave_plantable": None,
     }
     cfg.update(config)
 
@@ -181,7 +185,8 @@ def make_agent(config):
                 zones[i].add(swept[min(i, len(swept) - 1)])
 
         # ---------- build task list ----------
-        want_animal_tiles = _animal_reservation(me, cfg["animals"])
+        want_animal_tiles = _animal_reservation(
+            me, cfg["animals"], cfg.get("animal_reserve_leave_plantable"))
         reserved = set(want_animal_tiles) - {p for p, _ in placed_animals}
         # only open as many new PLANT tasks as the crew can actually keep watered
         # (unwatered backlog throttle -- without this the field over-plants, crops
@@ -374,7 +379,7 @@ def make_agent(config):
     return agent
 
 
-def _animal_reservation(me, targets):
+def _animal_reservation(me, targets, leave_plantable=None):
     if not targets:
         return []
     tiles = me["tiles"]
@@ -388,7 +393,18 @@ def _animal_reservation(me, targets):
                    if t != "LOCKED" and (x, y) not in SHED_TILES and (x, y) not in taken
                    and not (isinstance(t, dict) and "animal" in t)),
                   key=lambda c: (abs(c[0] - 4.5) + abs(c[1] - 4.5), c))
-    return existing + free[:k - len(existing)]
+    # Opt-in (cfg["animal_reserve_leave_plantable"]): never reserve so many tiles
+    # that the currently-unlocked field can't hold a working crop block -- always
+    # leave >= this many plantable tiles. Without it a high herd target on a
+    # 1-quadrant opening reserves ~all 25 tiles, the field never plants, the land
+    # fill-gate never trips, and the whole economy deadlocks (the failure mode
+    # bot_animalfactory_v2's NOTE describes). The real ladder factory opponent
+    # grows its herd incrementally as land opens; this tracks unlocked area the
+    # same way. Default None = original behaviour (reserve all k upfront).
+    want = k - len(existing)
+    if leave_plantable is not None:
+        want = max(0, min(want, len(free) - leave_plantable))
+    return existing + free[:want]
 
 
 def _placed(me):

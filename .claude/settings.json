@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python compete.py --agent main.py --games 24 --pick-seed 4242)",
+      "Bash(kaggle competitions *)",
+      "Bash(python -m kaggle competitions submissions kaggriculture)"
+    ]
+  }
+}

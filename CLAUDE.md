@@ -1,235 +1,156 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code in this repo. Kept deliberately short — it loads on
+every session. Detail lives in `knowledge-base/` (read on demand).
 
 ## What this is
 
-A single-agent entry for the **Kaggriculture** Kaggle Simulations competition — a
-2-player, 720-turn (30 days × 24 turns) farming/economy game run on
-`kaggle-environments`. The whole submission is `main.py`, which must expose
+Single-agent entry for the **Kaggriculture** Kaggle Simulations competition: a
+2-player, 720-turn (30 days × 24 turns) farming/economy game on
+`kaggle-environments`. The whole submission is `main.py`, exposing
 `agent(obs) -> {"farmer": [...], "hands": [[...], ...], "market": [[...], ...]}`.
-Goal: end the season with more coins than the opponent. Reward is
-`farm["money"]` only; the coin margin never affects rating, just win/loss/tie.
+Reward is `farm["money"]`; rating is Bradley-Terry over win/loss/tie only —
+margin is discarded. Deadline **2026-09-30**.
 
-## Task list — read first, keep updated
+## Start here every session
 
-`TASKS.md` (repo root) is the canonical, living checklist toward the top of
-the leaderboard: current submission-slot state, the ranked submission queue,
-the standing one-change-per-slot loop, and what's explicitly shelved. Check
-it at the start of every session and **update it in the same sitting** as any
-action it lists (submission made, ladder read back, item reprioritized) —
-don't let it go stale the way `experiments/LEDGER.md`'s narrative once did.
+1. `TASKS.md` — live submission-slot state, ranked queue, shared work board.
+   Claim a row (with the files you'll own) before editing code; update it in the
+   same sitting as any action it lists. Re-read it + `experiments/LEDGER.md`
+   right before writing either.
+2. `knowledge-base/INDEX.md` — one-screen cheat sheet, then the matched file.
+   `knowledge-base/04-engine-internals.md` is authoritative for any ambiguous
+   mechanic. `07-codebase-and-workflow.md` = file map + pipeline walkthrough.
+3. `docs/LADDER_RUNBOOK.md` — the execution loop (teardown → one flagged change
+   → local-gate → queue → judge), run via `/ladder`. Its State table is the
+   live slot status.
 
-## Knowledge base — read first
+Codex may share this working tree — follow the handoff protocol in
+`docs/PLAN_TO_3000.md`; don't touch another active row's owned files.
 
-`knowledge-base/` is the consolidated reference for this game: rules, exact
-engine math, market economics, the observation/action API, the strategy record
-(archetypes + what was tried and reverted), and the codebase/workflow map.
-Start at `knowledge-base/INDEX.md` (it has a one-screen cheat sheet), then open
-the file that matches the task. `knowledge-base/04-engine-internals.md` is
-authoritative for any ambiguous mechanic. Keep it in sync when the env,
-`main.py`, or the strategy understanding changes.
+## Workflow rules — do not deviate
 
-## Environment setup
+Repeated lessons from the ladder record; they override the "try lots of things"
+instinct.
 
-`kaggle-environments` bundles `pygame`, which does not build on Python 3.14, so
-install without deps:
+- **One atomic, `ENABLE_*`-flagged change per submission. Never bundle.**
+  Bundled subs can't be attributed.
+- **Judge only after ≥20 ladder episodes; never revert before ≥15.**
+  Sub-episode reads have burned us.
+- **Gate metric = win-rate (score-rate) vs `animal_factory`.** Not mean, not
+  margin. It's ~56% of ladder games and the worst matchup, so
+  `bots/bot_animalfactory_v2.py` carries extra weight in the local pool.
+- **Prefer mechanical / efficiency / bug fixes over economy or crop tuning.**
+  The only changes that ever moved the ladder were mechanical (feed-floor bug
+  fix →574.6; routing + MAXHANDS-12 →605.1). Every economy/crop tweak failed to
+  gate or was reverted.
+- **Rule out an `agent()` exception first** on any flat/losing episode — a
+  silent raise looks identical to a bad strategy.
+- **No new local tooling, no new bots, no new `PLAN_*.md` files.** `ml/` is
+  frozen until after 2026-09-30. Local eval only catches large regressions vs
+  trivial bots — that's its ceiling (confirmed v6/v8/v8b/PLAN_300K).
+- **~6-8 clean `main`-slot reads remain.** Spend them on ranked high-EV changes
+  only.
 
-```bash
-pip install --no-deps kaggle-environments jsonschema kaggle
-```
+## Submission caps & auto-submit (2026-09-09)
 
-The env source (authoritative for all game math) lives at
-`kaggle_environments/envs/kaggriculture/kaggriculture.py` in the installed
-package — read it directly when a mechanic is unclear.
-
-## Commands
-
-**`compete.py` — the ladder-like gate (use this by default).** One match =
-random opponent from the pool (`bots/` archetypes + `contenders/` + every
-`agents/*.py` snapshot + `starter`), random 9-digit seed, random seat, stock
-competition config (`startingMoney=3000`, `actTimeout=1`, `debug=False` so a
-raised exception silently falls back to all-PASS exactly like Kaggle). Every run
-archives `manifest.json` + per-game `*.replay.json.gz` + `*.logs.json` under
-`compete_runs/<stamp>/`.
-
-```bash
-python compete.py --games 120                       # full pool, fresh opp+seed each
-python compete.py --agent main_herdbatch.py --games 120 --pick-seed 4242
-python compete.py --opponent bots/bot_animalfactory_v2.py --games 20
-python compete.py --pool bots/bot_wheatflood.py starter --games 10
-```
-
-**`tools/analyze_runs.py` — the results / replay / log analysis pipeline.**
-Reduces a `compete_runs/` archive to overall W/T/L + score-rate, per-opponent
-and per-archetype breakdowns, movement / plant / weed / animal / sell
-diagnostics, surfaced agent exceptions, and a worst-games loss diagnosis with
-the day the coin lead flips. Same archetype buckets as `tools/ladder_analyze.py`.
-
-```bash
-python tools/analyze_runs.py                        # newest run
-python tools/analyze_runs.py --last 3               # merge 3 newest runs
-python tools/analyze_runs.py --compare <stampA> <stampB>
-python tools/analyze_runs.py --last 2 --json summary.json --csv games.csv
-```
-
-`test.py` — older paired seat-alternating benchmark (fixed opponent list, shared
-per-pair seeds). Still useful for a tight A/B on one hypothesis; `compete.py` is
-the ladder model. Built-in opponents by name: `pass`, `random`, `starter`.
-
-```bash
-python test.py --games 40 --candidate main.py --incumbent agents/main_v10.py
-```
-
-Local single game (edit the file to change opponents / config): `python local.py`
-
-Kaggle CLI (full workflow in `AGENTS.md`; `commands.txt` has recent ad-hoc
-invocations):
-
-```bash
-kaggle competitions submit kaggriculture -f main.py -m "message"
-kaggle competitions submissions kaggriculture
-kaggle competitions episodes <SUBMISSION_ID> -v
-kaggle competitions replay <EPISODE_ID> -p ./replays
-kaggle competitions logs <EPISODE_ID> <0|1> -p ./logs
-```
-
-Multi-file agents must be bundled as a tar.gz with `main.py` at the root.
+- **≤5 submissions per calendar day** across all slugs/models combined;
+  **≤4 of those experiment agents**, released as 2 batches of 2 ~12h apart
+  (Kaggle tracks only the latest 2 subs).
+- Only the promoted `main.py` goes to the real `kaggriculture` slug — never
+  `agents/main_v*.py`, `main_auto.py`, or ML probes.
+- **Auto-submit is GRANTED** for locally-gated candidates (no per-sub
+  approval). Preconditions: local gate clean (never-raise + **0 `agent()`
+  errors** + no regression vs `animal_factory` win-rate), caps respected, and
+  the **rating-floor guard** — don't submit if it leaves both tracked slots
+  below the all-time peak (605.1 / `56044961`) with no candidate proven better
+  at ≥20 eps. Post the sub id after submitting.
 
 ## Constraints the agent must respect
 
 - **~1s wall-clock per `agent()` call.** `main.py` runs ~4ms/step; keep it there.
-- **Never raise.** `agent()` has a top-level try/except that falls back to all
-  `PASS`. A silent exception looks identical to a bad strategy in the replay —
-  when debugging a flat/losing episode, first rule out an exception.
-- **≤10 market orders/turn** (`maxMarketOrdersPerTurn`); extras are dropped
-  silently, so order assembly is priority-sorted.
+- **Never raise.** Top-level try/except falls back to all `PASS`; a silent
+  exception is indistinguishable from a bad strategy in the replay.
+- **≤10 market orders/turn** (`maxMarketOrdersPerTurn`); extras dropped
+  silently — assemble orders priority-sorted.
 - Observation has `day`/`hour`, **not** `step`. Shop names in
-  `town.unlocked_shops` are `UPPER_SNAKE` (`PIZZA_SHOP`) — the old title-case
-  lookup bug in `main_600.py`/`main_v1.py` zeroed every shop-demand signal.
+  `town.unlocked_shops` are `UPPER_SNAKE` (`PIZZA_SHOP`).
 
-## Agent lineage
+## Commands
 
-`main.py` is the promoted agent. Snapshots live in `agents/main_v*.py` (v1→v11)
-plus `agents/main_p2.py` / `main_p3.py` forks; the newest snapshot is the
-`test.py` incumbent and every snapshot is a `compete.py` pool opponent. Ladder
-history: v1 **333** → v2/main_600 **477** (the ML probe sub 55960518 scored
-202.5 and is not an agent). Committed `main.py` @ `45ce7bd` = **v10** (v7 zoned
-core + P1 day-scaled reserve + F1 herd-match + P2 fertilizer staple + P4
-coverage cap). `agents/main_v11.py` and `main_herdbatch.py` are in-flight
-candidates — see `experiments/LEDGER.md` for the per-version record and
-`knowledge-base/07-codebase-and-workflow.md` for the authoritative file map and
-pipeline walkthrough.
+Setup (pygame won't build on 3.14):
+`pip install --no-deps kaggle-environments jsonschema kaggle`. Env math is
+authoritative at `kaggle_environments/envs/kaggriculture/kaggriculture.py` in
+the installed package.
 
-## Agent architecture
+```bash
+python compete.py --games 120                 # ladder-like gate; archives to compete_runs/<stamp>/
+python tools/analyze_runs.py --last 2 --json summary.json --csv games.csv   # per-archetype W/T/L, always via --json/--csv
+python test.py --games 40 --candidate main.py --incumbent agents/main_v10.py # tight A/B on one hypothesis
+kaggle competitions submit kaggriculture -f main.py -m "msg"
+```
 
-Turn-by-turn stateless recompute, but structured so labour isn't wasted on
-movement (the failure mode of the 600-score agent, which spent ~76% of
-unit-actions moving). Pipeline inside `agent()`:
+Full command reference: `AGENTS.md`. Real-ladder replay analysis:
+`tools/ladder_analyze.py <sub>` after `download_episodes.py` (run with 3.13).
 
-1. `unlocked_cells` + `make_zones` — split the swept tile list into **persistent
-   contiguous per-unit zones**. Units act within their zone; they only leave for
-   a survival deadline (task priority ≥ 9000).
-2. `animal_targets` / `animal_tiles` / `animal_crew_actions` — a dedicated crew
-   (last 1–4 hands) handles what a generic task can't: `FEED` (consumes wheat
-   from the acting unit's own inventory), `CARE`, `PLACE`, `BUILD_*`, hauling
-   wheat from the shed. Gated by `USE_ANIMALS`.
-3. `build_tasks` + `add_plant_tasks` — emit `(priority, (x,y), action)` tuples
-   over the whole farm: watering (dying-plant vs bonus-window vs comfort),
-   harvest, `COLLECT_FERTILIZER` (priority 2700, any unit), weeds, and
-   fill-every-tile planting. `choose_crops` picks the crop mix.
-4. `assign` — priority-sorted greedy assignment with an act-on-current-tile
-   bias, zone restriction (except survival), critical-work global pass, and idle
-   repositioning toward pending work.
-5. `market_orders` — `price_at` is a local reimplementation of the env price
-   curve; each `SELL` is sized against it rather than a fixed batch. Slots are
-   filled by priority: dawn `HIRE` → top-3 `SELL` → land/animal/feed buys →
-   seeds → remaining sells.
+## Token economy — work cheaply in this repo
 
-Crop / market / shop constants (`CROPS`, `BASE`, `MKT`, `SHOPS`, `ANIMALS`) are
-tuned to this env's economics — see below before changing them.
+Running out of plan tokens is mostly structural here. Follow these:
 
-## Env economics that drive strategy
+- **Never `Read` raw episode data.** `replays/`, `logs/`, `episodes/`,
+  `compete_runs/**/*.replay.json.gz`, `*.logs.json` — one file can be
+  50–200k tokens. Always run `analyze_runs.py --json summary.json --csv
+  games.csv` / `ladder_analyze.py <sub>` and read the compact output. To
+  inspect one game use `probe_game.py` or grep a field — never the gz.
+- **Grep/Glob before Read.** Then `Read` with `offset`/`limit`, not whole
+  files. Don't re-read a file you just edited.
+- **`/clear` between unrelated tasks.** A long debug session then a submission
+  = you pay the debug tokens on every later call.
+- **Cap the `/loop` & `/ladder-auto` rolling summary at ~15 lines** (sub id +
+  ep count, last judged read, ≤3-item queue, what's benched) — not a
+  narrative. Run 1–3 iterations, then `/clear`. Between a submit and its
+  20-ep readback there is nothing to do — end the session.
+- **Use `/model haiku`** for readbacks, submissions, `LEDGER`/`TASKS` edits,
+  running the gate. Reserve Sonnet for strategy design / debugging.
+- **Offload broad searches to a subagent** (Explore / general-purpose) — it
+  burns its own context and returns only the conclusion.
+- **No MCP servers are needed here** — keep them disabled in
+  `.claude/settings.json`.
+- **Log spend** to `experiments/TOKENS.md` (`tools/token_report.py`) each
+  session so the expensive activity is visible.
 
-Distilled from replay analysis (`PLAN_3000.md`, `SCORE_IMPROVEMENT_PLAN.md`, and
-the memory notes):
+## File map (essentials)
 
-- **The market barely moves.** Both players combined dent inventory by only
-  ~100–450 units/product/season (I0 = 10,000). Town center + shops consume for
-  free, faster than typical production, so premium/ongoing prices climb well
-  above base (observed end prices: STRAWBERRY ~297, MILK ~328, TOMATO 107–564).
-  Produce far more high-value goods than feels safe.
-- **CARROT** crashes easily (few consumers); grow little. **MELON** crashes hard
-  on glut (sq curve); hard-cap ~5 tiles. TOMATO/STRAWBERRY are ongoing with
-  runaway scarcity ceilings — lean the field into them.
-- **Don't over-crash MILK/WOOL/FERTILIZER** — when both players dump, WOOL→1,
-  MILK→28. Spread sales.
-- **End-of-day auto-drops every unit inventory to the shed**, so no `DROP`
-  round-trips are needed except final-day liquidation. Anything unsold at
-  ~step 718 is worthless.
-- Fresh plant starts `consecutive_unwatered=1` → must be watered its planting
-  day or it dies that night. Two consecutive missed waters → weed; two missed
-  feeds → animal escapes (permanent).
-- Animals produce milk/wool/egg indefinitely **without** feeding; feeding only
-  unlocks the `CARE` bonus. Every surviving animal drops 1 fertilizer/day free.
-- No hard farm-hand cap; ~12 hires/day is just the 10-order/turn limit split
-  across two hours. Hiring is cheap (`fib(n)`, resets daily).
-
-## Benchmarking notes
-
-Real ladder is **not** self-play, and **the local harness cannot gate a `main.py`
-economy change** — repeatedly confirmed (v6, v8, v8b, PLAN_300K s1–2): a change
-can be neutral/positive vs `starter` and every isolated probe yet net-negative
-vs the active bots, or vice-versa. What local *can* catch: a large regression vs
-a trivial bot (`starter`/`random`) is a real bug signal, not noise
-(`docs/PLAN_LADDER_V10.md` §3). Workflow: one attributable change per submission
-→ `compete.py --games 120` for a sanity read + `tools/analyze_runs.py` for the
-per-archetype diagnosis → submit → after ~15–20 episodes
-`download_episodes.py` + `tools/ladder_analyze.py <sub>` → compare the
-`vs animal_factory` row to the prior baseline. `animal_factory` is ~56% of
-ladder games and the worst matchup (`docs/PLAN_LADDER_ECON.md`), so
-`bots/bot_animalfactory_v2.py` carries extra weight in the pool.
-
-**Submission discipline (2026-09-04, see `PLAN_RATING_IMPROVEMENT.md`).** Only
-your **latest 2** Kaggle submissions are tracked/active — every submission
-either fills an empty tracked slot or evicts one of the current two. Never
-submit anything but the promoted `main.py` to the real `kaggriculture` slug
-(no `agents/main_v*.py`, no `main_auto.py`, no ML probes) — a broken/abandoned
-file submitted "just to check" occupies a live rating slot exactly as long as
-a good one would. One attributable change per submission, and submit nothing
-else that day so it gets a clean window before being displaced. Judge
-promote/revert decisions by **win-rate** (score-rate), not mean/margin —
-rating is Bradley-Terry over win/loss/tie only, margin is discarded.
-
-## File map
-
-- `main.py` — the submission (promoted agent). `main_herdbatch.py`, `main_ml.py`,
-  `main_ai.py` — candidate forks at repo root.
-- `agents/main_v*.py`, `agents/main_p*.py` — the version lineage; `compete.py`
-  pool opponents + `test.py` incumbents.
-- `bots/` — hand-written opponent archetypes on `bots/_kagri_botlib.py`
-  (`bot_animalfactory_v2`, `bot_animalfarm`, `bot_wheatflood`, `bot_premium`,
-  `bot_melonmono`). `contenders/` — a second archetype set on `contenders/_engine.py`.
-- `compete.py` — ladder-like match harness → `compete_runs/<stamp>/`.
-  `tools/analyze_runs.py` — analysis pipeline over those archives.
+- `main.py` — the promoted submission. Forks at repo root: `main_herdbatch.py`,
+  `main_ml.py`, `main_ai.py`.
+- `agents/main_v*.py`, `agents/main_p*.py` — version lineage; `compete.py` pool
+  opponents + `test.py` incumbents. Every agent change goes into a **new**
+  versioned file — never overwrite a snapshot.
+- `bots/` — opponent archetypes on `bots/_kagri_botlib.py`. `contenders/` — a
+  second set on `contenders/_engine.py`.
+- `compete.py` → `compete_runs/<stamp>/`; `tools/analyze_runs.py` reduces it.
   `tools/ladder_analyze.py` / `classify_ladder.py` / `probe_game.py` /
   `early_probe.py` — real-ladder replay analysis. `test.py` — paired A/B.
-  `local.py` — one-off game.
-- `download_episodes.py` — bulk pull of ladder replays+logs → `replays/`,
-  `logs/`, `episodes/` (run with Python 3.13). `download_top_replays.py` —
-  top-of-leaderboard replays.
-- `experiments/LEDGER.md` — one row per agent version (change → local → ladder →
+  `local.py` — one-off game. `download_episodes.py` — bulk replay pull (3.13).
+- `experiments/LEDGER.md` — one row per version (change → local → ladder →
   status). `experiments/TOKENS.md` — per-session token spend.
-- `ml/` — Optuna / CMA-ES engine-config search + IL/self-play scaffolding
-  (`ml/loop.py` supervisor never submits or overwrites `main.py`).
-- `docs/` — strategy plans and roadmaps. Read `docs/PLAN_LADDER_NEXT.md`
-  (**current plan** — corrected ladder facts + routing/top-10-teardown
-  sequence) first, then `docs/PLAN_LADDER_ECON.md` (the 75-replay archetype
-  sweep). `docs/PLAN_LADDER_V10.md` is the prior plan, kept as history/
-  rollback reference. `docs/PLAN_3000.md` / `PLAN_300K.md` = coin-ceiling
-  analysis.
-- `knowledge-base/` — the consolidated game/strategy/workflow reference (start at
-  `INDEX.md`). `AGENTS.md` — Kaggle CLI workflow. `README_2.md` / `how to play.md`
-  — full rules.
-- `replays/`, `logs/`, `episodes/`, `compete_runs/`, `benchmark_replays/` —
-  episode data (downloaded + generated).
+- `knowledge-base/` — consolidated game/strategy/workflow reference (start at
+  `INDEX.md`). `AGENTS.md` — Kaggle CLI workflow. `README.md` / `README_2.md` /
+  `how to play.md` — full rules.
+- `docs/` — strategy plans. Authoritative: `IMPACT_RANKED_LEADERBOARD_PLAN.md`,
+  `PLAN_TO_3000.md`, `PLAN_LADDER_ECON.md`. Older plans kept as rollback
+  history.
+- `ml/` — frozen until after 2026-09-30.
+- `PUBLIC_AGENT_STRATEGY_CATALOG.md` — competitor mechanisms, **ideas-only**:
+  never copy/clone/adapt competitor source; re-derive from engine rules and
+  gate like any candidate.
+
+## Agent architecture & economics
+
+Not repeated here — the prose drifted out of sync. Read:
+`knowledge-base/07-codebase-and-workflow.md` (the `agent()` pipeline:
+`make_zones` → animal crew → `build_tasks`/`add_plant_tasks` → `assign` →
+`market_orders`), `knowledge-base/03-market-and-economy.md` and
+`06-strategy-playbook.md` (market barely moves; lean into TOMATO/STRAWBERRY;
+hard-cap MELON/CARROT; spread MILK/WOOL/FERTILIZER sales; end-of-day
+auto-drops to shed). Lineage / ladder history: `experiments/LEDGER.md`.
