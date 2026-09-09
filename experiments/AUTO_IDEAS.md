@@ -327,3 +327,34 @@ forward queue + why each item is/ isn't above the submit bar.
   both slots. Kaggle CLI unavailable in this env this iter (no fresh ep count —
   P0 gate, no judgment due). STALL COUNT unchanged at 2. Verdict: **P0.6
   BUG-FIXED**. Next: P0.7 (data pulls complete + fresh).
+
+- **2026-09-09 iter 16 (P0 iteration):** Pipeline audit `IN_PROGRESS`, hash
+  matched `f86bad1…` → audit-and-fix only. **P0.7 (data pulls complete + fresh)
+  — BUG FOUND + FIXED.** Subagent static-read `download_episodes.py` +
+  `download_top_replays.py`: claims 1 (`--refresh` re-pulls, not a no-op),
+  2 (incremental keys on episode id, re-queries the full list — new episodes
+  not skipped) and 3 (Py3.13 invocation correct; `from __future__ import
+  annotations` neutralises `list[str]` hints, Python313 path ahead of `python3`
+  in the interpreter-candidate list) all hold. **BUG (claim 4):** a
+  partial/truncated download was confirmed only by `Path(...).exists()` — no
+  size or JSON-parse check, no temp+rename. A mid-transfer TCP reset (or any
+  CLI failure leaving bytes on disk) wrote a short file to the final path; the
+  failing run only printed a warning and left it, then every later incremental
+  run saw it present, set `need_replay=False`, and permanently indexed the stub
+  as a legitimate episode → the exact "truncated pull → premature 20-ep read"
+  failure the plan names. **Fix:** `_valid_json(path)` added to both scripts
+  (size ≥ 2 B AND `json.loads` parses, else `unlink()` the stub);
+  `download_replay`/`download_logs` (download_episodes.py) and `download()`
+  (download_top_replays.py) now return False on a partial pull so the next run
+  re-fetches; `replay_present()` incremental-skip check is size-gated
+  (`_MIN_REPLAY_BYTES = 100_000`; real replays >4 MB) so pre-existing stubs are
+  re-pulled too. Regression guard: module-level `assert _valid_json(<missing
+  path>) is False` in both. Both import clean under Py3.13. Committed `1d4302a`.
+  2 limits logged (`logs_present` still bare `.exists()`; 2 B / 100 KB size
+  floors). Pipeline hash → `e81c8602…`; **P0.8 is the last `[ ]` section.**
+  **I1 unchanged:** tracked pair `56101006` (A4 pending) + `56089527` (retired)
+  — no peak-or-better anchor but `56044961` bytes already read 538.1 on the
+  hardened pool so no recovery exists; HELD both slots. Kaggle CLI unavailable
+  in this env (no fresh ep count — P0 gate, no judgment due). STALL COUNT
+  unchanged at 2. Verdict: **P0.7 BUG-FIXED**. Next: P0.8 (loop bookkeeping
+  self-consistent) — the final audit section; then STATUS: PASS.
