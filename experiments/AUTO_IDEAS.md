@@ -436,6 +436,22 @@ forward queue + why each item is/ isn't above the submit bar.
   **PROPOSED `agents/main_v27_herdreserve2.py` (A7b) for submit** (awaiting a
   Kaggle-CLI env + user approval).
 
+- **2026-09-09 iter 20:** Kaggle CLI unavailable (4th consecutive iter — `kaggle`
+  not on PATH / no py module). No `56111947` read (Codex-managed), no submit. A9
+  (v28) gate from iter 19 still mid-run (`compete_runs/v28_offzd` 15/30,
+  `v28_on120` 19/120, 2 live python procs) → did not launch a competing gate.
+  Focus = "improve agent + deep research". Dispatched one subagent for a
+  **focused movement-lever teardown** → `docs/RESEARCH_MOVEMENT_LEVER.md`:
+  move% 63 vs 49 (finding #6) is the last top-3 EV divergence with no viable
+  candidate; want 2-3 low-regression-risk incremental changes distinct from the
+  reverted MOVE_THRIFT_V2 / wedge-zones, or an honest "needs the risky rework".
+  Loop is now on a 30-min cron (job `105d9f46`), fixed-interval. Verdict:
+  **HOLD** (A9 gate running, movement research dispatched, submit env-blocked).
+  Next fire: read A9 gate + `RESEARCH_MOVEMENT_LEVER.md`; if A9 clean, stage a
+  bundled "crater-economy" sub = `ENABLE_HERD_RESERVE_EXEMPT` +
+  `ENABLE_WEED_SWEEP_EARLY` (+ A5 SEED_DRIP if built) for the next Kaggle-CLI
+  window.
+
 - **2026-09-09 iter 16 (P0 iteration):** Pipeline audit `IN_PROGRESS`, hash
   matched `f86bad1…` → audit-and-fix only. **P0.7 (data pulls complete + fresh)
   — BUG FOUND + FIXED.** Subagent static-read `download_episodes.py` +
