@@ -324,7 +324,7 @@ LATE_WEED_SWEEP_RANGE = 4
 # redirects a hand that has NO task this turn (same guard as LATE_WEED_SWEEP), so
 # it cannot pull labour off crops or animals. OFF is an exact byte no-op (the
 # two locals below evaluate to the LATE_WEED_SWEEP_* constants unchanged).
-ENABLE_WEED_SWEEP_EARLY = False
+ENABLE_WEED_SWEEP_EARLY = True
 WEED_SWEEP_EARLY_DAY = 10
 WEED_SWEEP_EARLY_RANGE = 7
 ENABLE_ENDGAME_SWEEP = False
@@ -502,7 +502,7 @@ ANIMAL_PACING_CASH_FLOOR = 600  # observed craters land at $51-480; healthy earl
                                 # buys clear $600 (1400, a first guess, also
                                 # blocked those and cost economy).
 
-ENABLE_HERD_RESERVE_EXEMPT = False
+ENABLE_HERD_RESERVE_EXEMPT = True
 # HERD-RESERVE-EXEMPT (/ladder-auto iter 17, 2026-09-09 deep-research + top-10
 # teardown, "bug C"). The configured herd target is ~14 (HERD_TARGET COW8/SHEEP5
 # ish, HERD_COMPLETE_DAY 12) but the realized herd on the ladder averages 7.9 --
