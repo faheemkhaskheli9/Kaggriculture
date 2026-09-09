@@ -17,3 +17,9 @@ C:/Users/LENOVO/AppData/Local/Programs/Python/Python313/python.exe -m kaggle com
 
 # 2026-09-08 /ladder-auto iter 9 -- submit A4 ENDGAME-SWEEP
 py -3.13 -m kaggle competitions submit kaggriculture -f main.py -m "A4 ENABLE_ENDGAME_SWEEP ON ..." # -> 56101006 PENDING (evicts board-best anchor 56079953 from tracked pair; pair now 56101006 + 56089527/542.9)
+
+# 2026-09-09 /ladder-auto iter 23 -- Kaggle CLI installed this session, submit v30 crater/throughput bundle
+python -m pip install kaggle bleach python-slugify kagglesdk jupytext   # CLI + runtime deps (py3.14); KAGGLE_API_TOKEN env auth
+python -m kaggle competitions submissions kaggriculture                  # tracked pair 56111947(547.3) + 56101006(505.9)
+python download_episodes.py --submissions 56111947 --refresh && python tools/ladder_analyze.py 56111947  # 26 eps 46% / af 50% (9-0-9) / 547.3, herd 8.0, weeds29 12
+python -m kaggle competitions submit kaggriculture -f main.py -m "v30 crater/throughput bundle: ENABLE_HERD_RESERVE_EXEMPT + ENABLE_WEED_SWEEP_EARLY ..."  # -> 56126876 PENDING (evicts 56101006 505.9; pair 56126876 + 56111947 547.3 floor)
