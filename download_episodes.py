@@ -145,6 +145,28 @@ def list_episodes(submission_id: str) -> list[dict]:
     return _parse_csv_block(r.stdout, "id")
 
 
+def _valid_json(path: Path) -> bool:
+    """A completed Kaggle download is non-empty and parses as JSON. A truncated
+    pull (network cut mid-transfer, CLI error leaving bytes on disk) is deleted
+    here so the next incremental run re-fetches it instead of indexing the stub
+    forever as a legitimate episode (P0.7 pipeline-audit fix)."""
+    try:
+        if path.stat().st_size < 2:
+            raise ValueError("empty file")
+        json.loads(path.read_text(encoding="utf-8"))
+        return True
+    except Exception:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return False
+
+
+# regression guard (P0.7): _valid_json must never raise, even on a missing path
+assert _valid_json(EP_DIR / "__nonexistent_probe__.json") is False
+
+
 def download_replay(episode_id: str, quiet: bool) -> bool:
     args = ["competitions", "replay", str(episode_id), "-p", str(REPLAY_DIR)]
     if quiet:
@@ -154,7 +176,7 @@ def download_replay(episode_id: str, quiet: bool) -> bool:
         msg = (r.stderr or r.stdout or "").strip() if quiet else "see output above"
         print(f"  ! replay {episode_id} failed: {msg}")
         return False
-    return (REPLAY_DIR / f"episode-{episode_id}-replay.json").exists()
+    return _valid_json(REPLAY_DIR / f"episode-{episode_id}-replay.json")
 
 
 def download_logs(episode_id: str, agent_index: int, quiet: bool) -> tuple[bool, bool]:
@@ -170,7 +192,7 @@ def download_logs(episode_id: str, agent_index: int, quiet: bool) -> tuple[bool,
         note = "opponent slot (403)" if forbidden else (out.strip() or "unavailable")
         print(f"  · logs {episode_id} agent {agent_index}: {note}")
         return False, forbidden
-    ok = (LOG_DIR / f"episode-{episode_id}-agent-{agent_index}-logs.json").exists()
+    ok = _valid_json(LOG_DIR / f"episode-{episode_id}-agent-{agent_index}-logs.json")
     return ok, False
 
 
@@ -192,8 +214,17 @@ def save_manifest(manifest: dict) -> None:
         json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
 
 
+_MIN_REPLAY_BYTES = 100_000  # real env-dump replays are >4 MB; a truncated
+                             # pull is far smaller. Cheap integrity gate for the
+                             # incremental-skip path (no full JSON parse / run).
+
+
 def replay_present(episode_id: str) -> bool:
-    return (REPLAY_DIR / f"episode-{episode_id}-replay.json").exists()
+    p = REPLAY_DIR / f"episode-{episode_id}-replay.json"
+    try:
+        return p.stat().st_size >= _MIN_REPLAY_BYTES
+    except OSError:
+        return False
 
 
 def logs_present(episode_id: str, agent_index: int) -> bool:

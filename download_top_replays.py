@@ -108,6 +108,27 @@ def public_episodes(submission_id: int) -> list[dict]:
     ]
 
 
+def _valid_json(path: Path) -> bool:
+    """True iff `path` is a non-empty, parseable JSON file. A truncated pull
+    (network cut, CLI error leaving bytes on disk) is deleted so the next run
+    re-fetches it instead of treating the stub as a real replay (P0.7 fix)."""
+    try:
+        if path.stat().st_size < 2:
+            raise ValueError("empty file")
+        json.loads(path.read_text(encoding="utf-8"))
+        return True
+    except Exception:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return False
+
+
+# regression guard (P0.7): _valid_json must never raise, even on a missing path
+assert _valid_json(Path("__nonexistent_probe__.json")) is False
+
+
 def download(kind: str, episode_id: int, output: Path,
              agent: int | None = None) -> tuple[bool, str]:
     command = ["competitions", kind, str(episode_id)]
@@ -116,7 +137,13 @@ def download(kind: str, episode_id: int, output: Path,
     command += ["-p", str(output), "-q"]
     result = run(command, check=False)
     message = (result.stderr or result.stdout).strip()
-    return result.returncode == 0, message
+    if result.returncode != 0:
+        return False, message
+    suffix = f"-agent-{agent}-logs" if agent is not None else "-replay"
+    landed = output / f"episode-{episode_id}{suffix}.json"
+    if not _valid_json(landed):
+        return False, "partial/corrupt download (deleted)"
+    return True, message
 
 
 def main() -> None:
