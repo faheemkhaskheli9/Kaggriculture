@@ -644,7 +644,7 @@ ENABLE_SELL_FIRST_ORDERS = False
 # ~d6 close losses / ~d11-12 blowouts). Local league cannot gate this -- ladder
 # read is the real test; regression check only.
 
-ENABLE_MOVE_THRIFT_V2 = True
+ENABLE_MOVE_THRIFT_V2 = False
 # MOVE_THRIFT_V2 (/ladder Phase C, 2026-09-06; re-based onto the
 # 56079953/56111947/56184777 lineage 2026-09-12) -- close the movement-share
 # gap to the top-10 ladder agents. Board-best spends 63% of hand-actions
