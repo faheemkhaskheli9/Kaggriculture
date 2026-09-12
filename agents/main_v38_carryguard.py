@@ -785,6 +785,66 @@ def _carried_animal(inv):
     return None
 
 
+ENABLE_CROP_FERTILIZE = False
+# CROP_FERTILIZE (Lever H3, 2026-09-13; research/top3_replay_findings.md gap
+# #1). main.py has never issued a FERTILIZE op -- it only collects and sells
+# the herd's free fertilizer -- while the top-3 fertilize 135-198x/game and
+# get 7.2-7.4 strawberries per planted tile against our ceiling of 4. Engine
+# (04-engine-internals): an ongoing crop's daily tick adds 2 units instead of
+# 1 when the plant was watered that day and `fertilized_until_day >= day`;
+# FERTILIZE consumes 1 FERTILIZER from the acting unit's inventory and sets
+# `fertilized_until_day = day + 2`, so one application covers the ticks that
+# resolve at the end of days D, D+1, D+2. TOMATO ticks at ages 8-11 -> +3
+# tomatoes from an application at age 7 and +1 at age 10; STRAWBERRY ticks
+# at ages 10/12/14/16 -> +2 strawberries from age 9 and again from age 13.
+# One-time crops are excluded: WHEAT/CARROT gain ~$50-75 per fertilizer
+# (below its own sale value) and MELON is already yield-capped by its window.
+# ON, one mechanism in four places:
+#   build_tasks: emit FERTILIZE (CROP_FERT_PRIORITY) on an unfertilized
+#     ongoing plant whenever the ticks the application would cover are
+#     worth >= CROP_FERT_MARGIN x the fertilizer's own price; harvest an
+#     ongoing plant at 3 held units (not 4) so a +2 tick never overflows.
+#   assign: FERTILIZE only matches a unit actually carrying fertilizer; at
+#     hours 0-1 (farmer, then the day's hires, all spawn at the shed) a unit
+#     whose zone has fertilize work PICKUPs up to CROP_FERT_PICKUP_MAX first.
+#   market_orders: hold back the next two days' fertilize demand from the
+#     staple FERTILIZER sell.
+# Days >= 28 and the OFF path are byte no-ops.
+CROP_FERT_PRIORITY = 2650         # > comfort water 2600, < evening top-off 3000
+CROP_FERT_MARGIN = 1.5            # covered-tick value must beat 1.5x fert price
+CROP_FERT_PICKUP_MAX = 3
+CROP_FERT_TICK_AGES = {"TOMATO": (8, 9, 10, 11), "STRAWBERRY": (10, 12, 14, 16)}
+
+
+def _fert_ticks_covered(crop, age):
+    """Ticks an application at `age` would upgrade: those resolving at the end
+    of days age, age+1, age+2 -- i.e. tick ages age+1 .. age+3."""
+    return sum(1 for t in CROP_FERT_TICK_AGES.get(crop, ()) if age + 1 <= t <= age + 3)
+
+
+def _fert_wanted(t, day, prices, mkt_inv):
+    """True if plant tile `t` should be fertilized today (value-gated)."""
+    crop = t.get("crop")
+    if crop not in CROP_FERT_TICK_AGES or t.get("fertilized_until_day", -1) >= day:
+        return False
+    n = _fert_ticks_covered(crop, day - int(t.get("planted_day", day)))
+    if n <= 0:
+        return False
+    gain = n * price_at(crop, mkt_inv.get(crop, 10000))
+    return gain >= CROP_FERT_MARGIN * max(1.0, price_at("FERTILIZER", mkt_inv.get("FERTILIZER", 10000)))
+
+
+def _fert_demand(me, day, mkt_inv):
+    """Plants that will want fertilizer today or tomorrow (shed reserve size)."""
+    n = 0
+    for row in me.get("tiles", []) or []:
+        for t in row:
+            if isinstance(t, dict) and t.get("kind") == "PLANT" and (
+                    _fert_wanted(t, day, None, mkt_inv) or _fert_wanted(t, day + 1, None, mkt_inv)):
+                n += 1
+    return n
+
+
 def _shape(func, x, T):
     x = max(0.0, x)
     if func == "linear":
@@ -1420,8 +1480,12 @@ def build_tasks(obs, me, private):
                     else:
                         mls = t.get("max_lifespan_step", -1)
                         decaying = mls >= 0 and (day + 1) * 24 >= mls
-                        near_cap = yu >= 4
+                        near_cap = yu >= (3 if ENABLE_CROP_FERTILIZE else 4)
                         tasks.append((5000 if (decaying or near_cap) else 3200, pos, ["HARVEST"]))
+                # ---- fertilizing (CROP_FERTILIZE) ----
+                if ENABLE_CROP_FERTILIZE and ongoing and day < 28 and _fert_wanted(
+                        t, day, None, (obs.get("market") or {}).get("inventory", {}) or {}):
+                    tasks.append((CROP_FERT_PRIORITY, pos, ["FERTILIZE"]))
             elif kind in {"COOP", "PASTURE"} and t.get("animal"):
                 # FEED needs wheat in the acting unit's inventory so it stays with
                 # the dedicated crew; HARVEST, COLLECT_FERTILIZER and CARE have no
@@ -1887,10 +1951,14 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
         opp_worth = _vis_worth(obs["farms"][1 - obs["player"]])
         if (_vis_worth(me) + my_shed_val) - opp_worth >= LEAD_RISK_MARGIN:
             lead_risk = "ahead"
+    fert_floor = (_fert_demand(me, day, mkt_inv)
+                  if (ENABLE_CROP_FERTILIZE and day < 28) else 0)
     for item, qty in list(shed.items()):
         qty = int(qty)
         if item == "WHEAT":
             qty -= wheat_floor
+        elif item == "FERTILIZER":
+            qty -= fert_floor
         if qty <= 0 or item not in BASE:
             continue
         inv0 = mkt_inv.get(item, 10000)
@@ -2485,6 +2553,27 @@ def assign(obs, me, private, tasks, zones, forced=None):
             busy[i] = True
             room -= cargo
 
+    # CROP_FERTILIZE: every unit spawns at the shed (the farmer at hour 0, the
+    # day's hires at hour 1) -- units whose zone has fertilize work stock up
+    # before walking out.
+    if ENABLE_CROP_FERTILIZE and day < 28 and hour <= 1:
+        fert_left = int((private.get("shed") or {}).get("FERTILIZER", 0))
+        fert_tiles = [target for _, target, action in tasks if action == ["FERTILIZE"]]
+        for i in range(n):
+            if fert_left <= 0:
+                break
+            if busy[i] or positions[i] not in SHED_TILES:
+                continue
+            if int(invs[i].get("FERTILIZER", 0)) > 0:
+                continue
+            zone = zones[i] if i < len(zones) else set()
+            want = sum(1 for target in fert_tiles if target in zone)
+            take = min(want, fert_left, CROP_FERT_PICKUP_MAX)
+            if take > 0:
+                actions[i] = ["PICKUP", "FERTILIZER", take]
+                busy[i] = True
+                fert_left -= take
+
     available = [i for i in range(n) if not busy[i]]
     candidates = _unique_tasks(tasks)
     secondary_map = _secondary_ops(tasks) if ENABLE_MOVE_THRIFT_V2 else {}
@@ -2503,6 +2592,10 @@ def assign(obs, me, private, tasks, zones, forced=None):
                 in_zone = target in zone
                 if action == ["DIG"] and not in_zone:
                     row_weights.append(_IMPOSSIBLE)
+                    continue
+                if (ENABLE_CROP_FERTILIZE and action == ["FERTILIZE"]
+                        and int(invs[i].get("FERTILIZER", 0)) <= 0):
+                    row_weights.append(_IMPOSSIBLE)     # needs fertilizer in hand
                     continue
                 # v11's strongest routing invariant is zone-first allocation.
                 # Keep that invariant for routine work; only true survival

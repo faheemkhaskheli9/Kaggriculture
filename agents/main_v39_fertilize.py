@@ -728,7 +728,7 @@ MOVE_THRIFT_V2_FAR_PENALTY = 35
 MOVE_THRIFT_V2_FAR_FREE = 2       # first FAR_FREE steps charged at the base rate
 MOVE_THRIFT_V2_IDLE_SLACK = 2     # idle hand holds position if within this many tiles
 
-ENABLE_SHED_STAGING = False
+ENABLE_SHED_STAGING = True
 # SHED_STAGING (Lever H1, 2026-09-13). Engine-exact replay of board-best
 # 56184777 (23 ladder eps): the end-of-day auto-drop overflowed the 100-item
 # shed in 22/23 games, discarding ~$6.3k of face value per game (WHEAT 1284,
@@ -759,7 +759,7 @@ SHED_SELLDOWN_MAX_LINES = 3
 SHED_SELLDOWN_ORDER = ("WHEAT", "CARROT", "FERTILIZER", "EGG", "MELON",
                        "TOMATO", "MILK", "WOOL", "STRAWBERRY")
 
-ENABLE_ANIMAL_CARRY_GUARD = False
+ENABLE_ANIMAL_CARRY_GUARD = True
 # ANIMAL_CARRY_GUARD (Lever H2, 2026-09-13). Companion to SHED_STAGING, kept
 # as its own flag so the ladder read stays attributable. The same engine-exact
 # replay of 56184777 found purchased animals in a crew hand's inventory at
@@ -785,7 +785,7 @@ def _carried_animal(inv):
     return None
 
 
-ENABLE_CROP_FERTILIZE = False
+ENABLE_CROP_FERTILIZE = True
 # CROP_FERTILIZE (Lever H3, 2026-09-13; research/top3_replay_findings.md gap
 # #1). main.py has never issued a FERTILIZE op -- it only collects and sells
 # the herd's free fertilizer -- while the top-3 fertilize 135-198x/game and
