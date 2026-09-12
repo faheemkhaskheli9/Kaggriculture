@@ -1516,7 +1516,7 @@ def _v11_assign_unused(obs, me, private, tasks, zones, forced=None):
 
 # END-20260910: liquidate the final day's existing output with a small crew.
 # All normal-day behavior, and the entire OFF path, use the incumbent policy.
-ENABLE_TERMINAL_WORKFORCE = False
+ENABLE_TERMINAL_WORKFORCE = True
 TERMINAL_MAX_HANDS = 8
 TERMINAL_LAST_HOUR = 22  # episodeSteps=720: interpreter finishes at step 718
 
