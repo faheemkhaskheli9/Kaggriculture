@@ -759,6 +759,31 @@ SHED_SELLDOWN_MAX_LINES = 3
 SHED_SELLDOWN_ORDER = ("WHEAT", "CARROT", "FERTILIZER", "EGG", "MELON",
                        "TOMATO", "MILK", "WOOL", "STRAWBERRY")
 
+ENABLE_ANIMAL_CARRY_GUARD = False
+# ANIMAL_CARRY_GUARD (Lever H2, 2026-09-13). Companion to SHED_STAGING, kept
+# as its own flag so the ladder read stays attributable. The same engine-exact
+# replay of 56184777 found purchased animals in a crew hand's inventory at
+# 21/23 day-ends: the crew only ever picks an animal up when the shed still
+# holds one (`in_shed_animals`), so a hand already carrying the *last* bought
+# animal falls through to the feed/harvest goals and walks around with it
+# until the day-end drop (audit defect #2); the pickup itself is not gated on
+# whether the structure is still reachable before the day ends; and
+# BUY_ANIMAL is issued into a full shed, where the engine silently fails it
+# while the reserve logic assumes the money was spent. ON:
+#   (a) a crew unit carrying an animal places it first (matching empty
+#       structure, else builds one on a reserved spot), regardless of what the
+#       shed holds -- ahead of the feed/harvest goals;
+#   (b) no PICKUP of an animal unless walk + PLACE fits before hour 23;
+#   (c) BUY_ANIMAL only while the shed has room for it.
+# OFF path is a byte no-op.
+
+
+def _carried_animal(inv):
+    for a in ANIMALS:
+        if int((inv or {}).get(a, 0)) > 0:
+            return a
+    return None
+
 
 def _shape(func, x, T):
     x = max(0.0, x)
@@ -1093,6 +1118,24 @@ def animal_crew_actions(obs, me, private, reserved, crew_idx, positions, invs):
             if pos in care_spots:
                 out[idx] = ["CARE"]; claimed.add(pos); continue
 
+        # 1b. ANIMAL_CARRY_GUARD (a): an animal in hand gets placed before
+        # anything else, whatever the shed holds.
+        carried = _carried_animal(inv) if ENABLE_ANIMAL_CARRY_GUARD else None
+        if carried:
+            spot = next((p for p, k in empty_struct
+                         if k == ANIMALS[carried][1] and p not in claimed), None)
+            if spot is not None:
+                claimed.add(spot)
+                out[idx] = ["PLACE", carried] if pos == spot else step_toward(pos, spot)
+                continue
+            spot = min((s for s in build_spots if s not in claimed),
+                       key=lambda p: dist(pos, p), default=None)
+            if spot is not None:
+                claimed.add(spot)
+                out[idx] = [ANIMALS[carried][2]] if pos == spot \
+                    else step_toward(pos, spot)
+                continue
+
         pending_feed = [p for p in feedable if p not in claimed]
         # 2. out of wheat with animals still to feed -> resupply from the shed
         if pending_feed and wheat == 0 and shed_wheat > 0:
@@ -1125,11 +1168,18 @@ def animal_crew_actions(obs, me, private, reserved, crew_idx, positions, invs):
                         out[idx] = ["PLACE", a]; claimed.add(spot)
                     else:
                         out[idx] = step_toward(pos, spot)
+                elif (ENABLE_ANIMAL_CARRY_GUARD
+                      and dist(pos, spot) + 1 > 24 - int(obs.get("hour", 0))):
+                    # (b): the walk + PLACE no longer fits today; leave the
+                    # animal in the shed rather than in a hand that vanishes
+                    # at day end. Fall through to the remaining steps.
+                    pass
                 elif shed_adj:
                     out[idx] = ["PICKUP", a, 1]
                 else:
                     out[idx] = to_shed()
-                continue
+                if idx in out:
+                    continue
 
         # 5. build a structure on a reserved empty tile
         if in_shed_animals and build_spots:
@@ -2041,6 +2091,8 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
                     room = backlog_cap - pending
                     affordable = int(max(0.0, fcash - reserve - feed_2d - HERDBATCH_CASH_FLOOR) // cost)
                     n = max(0, min(deficit, room, affordable))
+                    if ENABLE_ANIMAL_CARRY_GUARD:
+                        n = min(n, max(0, SHED_CAP - inv_total(shed) - pending))
                     if n > 0:
                         buys_hi.append(["BUY_ANIMAL", a, n])
                         money -= n * cost
@@ -2076,6 +2128,9 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
                         # buy that would crater cash below the floor the tiny
                         # early `reserve` can't provide.
                         afford = False
+                    if (ENABLE_ANIMAL_CARRY_GUARD
+                            and inv_total(shed) >= SHED_CAP):
+                        afford = False      # (c): engine silently fails the buy
                     if cur < want and afford:
                         buys_hi.append(["BUY_ANIMAL", a, 1])
                         money -= ANIMALS[a][0]
