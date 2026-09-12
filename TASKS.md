@@ -1,5 +1,34 @@
 # TASKS — path to the top of the leaderboard
 
+## Active improvement plan — 2026-09-10 (Codex)
+
+Baseline is the actual `e9a8b38:main.py` (routing, 12-hand cap, late weed sweep),
+not the older snapshot prose below. Existing untracked candidates are preserved.
+
+1. **Reproduce execution losses against the installed engine.** Check animals
+   carried outside the shed, duplicate crew/general service, and final-day
+   collection after the previous day's hands have been dismissed.
+2. **Screen one mechanism at a time.** Use existing `compete.py --baseline` on
+   identical opponent/seed/seat tuples; include incumbent/older strong agents,
+   animal factories, premium and volume opponents. Keep local win rate primary;
+   use cash, productive actions, dead crops and escapes to explain changes.
+3. **Confirm useful repairs on fresh seeds and both seats.** Require no agent
+   tracebacks/timeouts, working single-file packaging, normal-day equivalence for
+   terminal-only changes, and no material factory regression. Reject broad
+   economy tuning if the evidence does not support it.
+4. **Implement the selected repair in `main.py` with a reversible flag**, retain
+   the exact baseline, add focused engine-backed regression tests, and record
+   commands/results in `experiments/LEDGER.md`. Existing draft files stay intact.
+5. **Leaderboard follow-through:** a local result establishes correctness and
+   candidate strength only. After a submission, judge at least 20 real episodes
+   with special attention to animal factories; record the actual rating instead
+   of predicting a rating gain from local coin totals.
+
+The broad lifecycle draft failed its initial screen (-8.3 percentage points,
+one additional loss in 12 matched pairs). Keep it out of `main.py`. Screen
+fertilizer selling separately: verified engine rules provide no town demand to
+recover its oversupply price. Defer the crop-value model's finite-lifespan fix.
+
 > **Public-code review — REVOKED, ideas-only going forward (2026-09-05):** an
 > earlier version of this note recommended porting/submitting derivatives of
 > five other named competitors' actual repositories (cloned under
@@ -112,6 +141,10 @@ approval.
 
 | ID | Priority / isolated mechanism | Owner | Status | Owned files | Handoff / exit gate |
 |---|---|---|---|---|---|
+| TOP3-20260912 | Fresh top-three replay research, validated improvement, authorized submission | codex 2026-09-12 | running | `research/top3*`, `research/baseline_main_20260912.py`, new `experiments/candidate_top3*`, new `agents/main_v34*`, `main.py` after validation | User explicitly requested research, implementation and submission. Preserve existing dirty files and candidates; use current leaderboard seats, paired evaluation, engine checks, then submit one selected mechanism and record exact artifact/hash/submission ID. Reclaims stale main.py ownership from EXEC-20260910 without changing its draft files. |
+| FERT-20260910 | Sell fertilizer without waiting for nonexistent town demand | codex 2026-09-10 | running | `experiments/candidate_fertilizer_liquidation.py` | Isolated price-hold repair; same paired screen as execution drafts; no promotion without measured support. |
+| END-20260910 | Final-day collection and profitable temporary workforce | codex/execution_audit 2026-09-10 | running | `experiments/candidate_terminal_workforce.py`, `tests/test_terminal_workforce.py` | Reproduce lost final-day labor and fertilizer; compare terminal money with actual engine timing; isolated candidate only until paired gate. |
+| EXEC-20260910 | Repair concrete execution defects; paired validation before promotion | codex 2026-09-10 | running | `main.py` (validated changes only), `tests/test_execution_repairs.py`, `experiments/candidate_execution_repairs.py`, this plan and `experiments/LEDGER.md` | Baseline `e9a8b38:main.py`; preserve existing untracked candidates/tests. Reproduce animal installation and service reservation defects, screen separately, confirm selected repair on fresh paired seeds and factory opponents. No leaderboard claim from local coins alone. |
 | AM-FEED-1 | Strict feed-first targeting within the existing ANTI_META crew | claude 2026-09-05T23:20Z | done (not promoted) | `main.py` (`ENABLE_FEED_FIRST_CREW` block only — no-op at default) | Built as a general shared-crew toggle (not ANTI_META-scoped). Zero-diff self-test: OFF == HEAD (0/4320 action diffs, 2 opps × 3 seeds). 40-pair adversarial-v1 A/B: score delta +1.2% CI[+0.0%,+3.8%] (touches zero), every external archetype exactly +0.0%, only flip in `main` self-play; escapes +0.0 (local pool never starves a herd, so the exit gate's "reduce escapes" is unmeasurable locally), no external regression. Default OFF, committed, not promoted. Needs a ladder slot to gate — same wall as land-timing/demand-match/HERDBATCH. |
 | EVAL-FACTORY-1 | Unsaturated factory validation slice from our replays and engine rules | claude 2026-09-05T14:06Z | blocked | `bots/bot_factory_v3.py` (new), `bots/_kagri_botlib.py` | `_kagri_botlib` engine ceiling < main.py — a scripted factory bot can't be unsaturated; needs a replay-driven agent (POLICY-RARE-1) or ladder-gating. See snapshot note. |
 | R3-HERD-1 | Explain/test staged herd-cap signal alone | claude 2026-09-05T18:36Z | done (not promoted) | `experiments/candidate_top10rules.py` | **Closed 2026-09-05: explained, not promoted.** Root cause found+fixed (crew-size formula used reservation target not actual herd, `ENABLE_R3_CREW_FIX`, commit `a729abf`). Isolated crew-fix-alone test (R3 herd-cap OFF) vs `main.py`: score delta -2.5% CI[-6.2%,+1.2%], margin -2819, wheatflood/top10clone regress — the fix only pays off paired with R3's herd-cap bump, not standalone. Do not port the fix onto `main.py` alone; take it bundled with R3 if R3 itself ever clears Gate B. See `experiments/LEDGER.md`. |
