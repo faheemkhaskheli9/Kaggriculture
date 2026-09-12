@@ -364,7 +364,7 @@ ENDGAME_SWEEP_DAY = 28
 # (v31 strawskew held back -- its own local read never cleared 0 and the
 # joint v33 ladder read was ambiguous; isolating the land-restraint mechanism
 # tests a clean, distinct hypothesis).
-ENABLE_LAND_RESTRAINT = True
+ENABLE_LAND_RESTRAINT = False
 LAND_RESTRAINT_DAY = 12
 LAND_RESTRAINT_COVER = 8
 
