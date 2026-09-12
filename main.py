@@ -343,6 +343,31 @@ ENABLE_ENDGAME_SWEEP = False
 # exact byte no-op. Ladder-only EV (local league ends with fields already near-
 # empty).
 ENDGAME_SWEEP_DAY = 28
+
+# LAND-EXPANSION-RESTRAINT (/ladder-auto iter 30, replay 107185595 trace). The
+# af losses do NOT flip at the d10-15 "crater" -- we are ahead there. They flip
+# d15->d17: we hold 55-62 mostly-wheat tiles a ~13-hand crew cannot service
+# (move% 63, weeds 17-27), harvest late, and dump at d27-29 into a spent price
+# curve, while the opp caps ~27 tiles and pours labour into harvest + premium
+# sell into the rising scarcity ceiling. ON: when day >= LAND_RESTRAINT_DAY,
+# refuse the Q3 ($2000) land buy if the crew cannot cover the resulting field
+# (open_tiles + 25 > crop_units * LAND_RESTRAINT_COVER), reusing the same
+# crew-capacity notion add_plant_tasks / the Lever-2 Q4 gate already use. This
+# is a crew-COVERAGE gate, distinct from the reverted Lever B Q3 CASH-headroom
+# gate (56059070). OFF path is an exact byte no-op.
+# PROMOTED iter 31 (2026-09-12): standalone local gate (`byp5w7knj`) OFF-zd
+# 40/40 exact no-op PASS; ON 120g paired A/B +4.2% CI[+0.0%,+8.3%] (positive,
+# does not cross 0 -- clearer than the v31+v32 joint bundle's +0.4pp crossing
+# 0), 0 agent() errors, no external-archetype tank (only lineage self-play
+# regressions: main_p2/main_v14), plant->weed -3.5 (fewer weeds), productive
+# actions -41.0 (fewer but better-targeted acres). Submitted standalone
+# (v31 strawskew held back -- its own local read never cleared 0 and the
+# joint v33 ladder read was ambiguous; isolating the land-restraint mechanism
+# tests a clean, distinct hypothesis).
+ENABLE_LAND_RESTRAINT = True
+LAND_RESTRAINT_DAY = 12
+LAND_RESTRAINT_COVER = 8
+
 ENABLE_LEVER2_LAND_GATE = True
 # Lever 2 land half (docs/PLAN_TOP10.md, a146a5e). ON: gate the 4th quadrant
 # ($4000) on a computed check -- crew coverage capacity (reused from
@@ -1649,6 +1674,10 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
             else:
                 ok = (day <= 18 and fill >= POLICY_LAND_TIMING_OFF_FILL
                       and money >= cost + 400 + 200 * nth)
+            if ENABLE_LAND_RESTRAINT and nth == 1 and ok and day >= LAND_RESTRAINT_DAY:
+                _cu = max(1, n_units - min(4, max(0, n_units - 6)))
+                if open_tiles + 25 > _cu * LAND_RESTRAINT_COVER:
+                    ok = False
         elif ENABLE_LEVER2_LAND_GATE:
             # Lever 2 (docs/PLAN_TOP10.md): computed ROI instead of a
             # hardcoded hands bar. P4b (TOP10_TEARDOWN finding 1) found
