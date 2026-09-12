@@ -644,7 +644,7 @@ ENABLE_SELL_FIRST_ORDERS = False
 # ~d6 close losses / ~d11-12 blowouts). Local league cannot gate this -- ladder
 # read is the real test; regression check only.
 
-ENABLE_OPP_SHADE = True
+ENABLE_OPP_SHADE = False
 # OPP_SHADE (Lever G, docs/PLAN_LADDER_NEXT_5 + docs/RESEARCH_LADDER_META C4:
 # Halite 1st place's decisive lever was per-opponent online modeling). The
 # opponent's whole farm is public in obs["farms"]; classify it once per turn
