@@ -80,7 +80,7 @@ animal_factory score-rate, exactly as before. Order = $ in the crater window
 |---|---|---|---|---|
 | H1 | `ENABLE_SHED_STAGING` | late-day delivery + overflow sell-down | stop ~$6.3k/game + purchased animals discarded | **PROMOTED** (`56195143`: 26 eps, 58% overall, af 9-0-8 52.9% vs 44.4%, ladder 600.9) |
 | H2 | `ENABLE_ANIMAL_CARRY_GUARD` (`agents/main_v38_carryguard.py`) | carry-aware animal install, deadline-gated pickup, no buy into a full shed | realised herd 8 → 10+ | **SUBMITTED** `56199353` 2026-09-13 04:57 UTC |
-| N1 | `ENABLE_OPENING_MELON` (`agents/main_v40_openingmelon.py`) | 12 MELON on days 0-2 (nearest tiles), tomato share 0 those days, seed target capped at the batch, melon sold with the staple floor (0.45×base, 12/turn) through day 16 | +$13-17k at day 11-12; d15 cash ~$1k → ~$14k (probe: 1,445 → 15,522 d10→d11) | built + gated today (§4) |
+| N1 | `ENABLE_OPENING_MELON` (`agents/main_v40_openingmelon.py`) | 12 MELON on days 0-2 (nearest tiles), tomato share 0 those days, seed target capped at the batch, melon sold with the staple floor (0.45×base, 12/turn) through day 16 | +$13-17k at day 11-12; d15 cash ~$1k → ~$14k (probe: 1,445 → 15,522 d10→d11) | **SUBMITTED** `56199529` 2026-09-13 05:08 UTC (§4) |
 | H3 | `ENABLE_CROP_FERTILIZE` (`agents/main_v39_fertilize.py`) | value-gated FERTILIZE on ongoing crops, pickup at dawn, hold fert demand back from the sell | strawberry 4 → ~7 units/tile ≈ +$10-16k/game | built, next batch |
 | N2 | `ENABLE_MIDGAME_WHEAT_FLOOR` (not built) | keep ≥10-12 WHEAT tiles from day 7 to 22 (skip the day-9 100% slow-crop replant), so feed is grown not bought and cash keeps flowing | closes the day 9-19 production hole; −$1.5-2k feed purchases | after N1/H3 are read |
 | N3 | `ENABLE_OPENING_SHEEP` (not built) | day-0 herd 2 COW + 2 SHEEP instead of 3 COW; wool day 6/9 funds land 2 the way the leaders do it | +$400 day 6, +2 fertilizer/day | `herd-economy` family — build only after H2's read |
@@ -99,7 +99,13 @@ base, sticky targets, movement thrift (all reverted on evidence, see
   24-0-0 both arms (saturated), margin +$17,519/pair, **day-10 cash
   +$13,158/pair**, plant→weed −2.7, escapes −0.2, 0 errors.
 - ON vs `main.py`, 96 pairs full pool with animal_factory ×3
-  (`--pick-seed 4003`): see the LEDGER row (filled after the run).
+  (`--pick-seed 4003`): **paired score delta +10.4%, 90% CI [+3.1%, +17.7%]**
+  (does not cross 0, the first lever in the ledger to clear that),
+  improved/same/regressed 14/78/4 with all four regressions in lineage
+  self-play (v19/v28/v29/v35) and zero external-bot regressions, margin
+  +$13,855/pair, day-10 cash +$12,713/pair, 0 errors.
+- **Submitted 2026-09-13 05:08 UTC as `56199529`** (tracked pair with H2
+  `56199353`).
 - Single probe game vs `bot_animalfactory_v2` (seed 123456789): 12 melons
   planted day 0, harvested day 10, money 1,445 (d10) → 15,522 (d11), final
   92,516 vs 35,085.
