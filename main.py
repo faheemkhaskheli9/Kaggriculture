@@ -815,7 +815,7 @@ CROP_FERT_MARGIN = 1.5            # covered-tick value must beat 1.5x fert price
 CROP_FERT_PICKUP_MAX = 3
 CROP_FERT_TICK_AGES = {"TOMATO": (8, 9, 10, 11), "STRAWBERRY": (10, 12, 14, 16)}
 
-ENABLE_OPENING_MELON = False
+ENABLE_OPENING_MELON = True
 # OPENING_MELON (Lever N1, 2026-09-13; docs/STRATEGY_TOP3_GAP_2026-09-13.md).
 # Day-by-day replay of the top-3 leaders (research/top3_20260912) and of the
 # 23 ladder opponents of 56184777: two of the three leaders plant exactly 12
