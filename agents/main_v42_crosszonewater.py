@@ -344,7 +344,7 @@ ENABLE_ENDGAME_SWEEP = False
 # empty).
 ENDGAME_SWEEP_DAY = 28
 
-ENABLE_CROSS_ZONE_WATER = False
+ENABLE_CROSS_ZONE_WATER = True
 # CROSS-ZONE-WATER (H4, 2026-09-14 teardown of `56233524`'s first 17 real-ladder
 # eps). Same root cause as ENDGAME-SWEEP above, applied earlier and to WATER
 # instead of HARVEST: comfort-water sits at priority 2600, below the 9000
