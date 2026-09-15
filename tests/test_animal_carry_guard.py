@@ -45,10 +45,13 @@ def crew(obs, reserved):
 class AnimalCarryGuardTests(unittest.TestCase):
     def setUp(self):
         self._flag = main.ENABLE_ANIMAL_CARRY_GUARD
+        self._c2 = main.ENABLE_HERD_INSTALL_FIRST
         main.ENABLE_ANIMAL_CARRY_GUARD = True
+        main.ENABLE_HERD_INSTALL_FIRST = False   # H2 tests isolate H2 from C2
 
     def tearDown(self):
         main.ENABLE_ANIMAL_CARRY_GUARD = self._flag
+        main.ENABLE_HERD_INSTALL_FIRST = self._c2
 
     def test_last_carried_animal_is_placed_even_with_empty_shed(self):
         obs = observation(hands=[(2, 2)], inventories=[{}, {"COW": 1}])

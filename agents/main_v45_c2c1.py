@@ -970,7 +970,7 @@ def price_at(item, inv):
 MAX_YIELD = {"WHEAT": 6, "CARROT": 4, "TOMATO": 4, "STRAWBERRY": 4, "MELON": 6}
 INTERVAL = {"TOMATO": 1, "STRAWBERRY": 2}          # ongoing crops only
 
-ENABLE_CROP_VALUE_LIFESPAN = False
+ENABLE_CROP_VALUE_LIFESPAN = True
 # CROP-VALUE-LIFESPAN (Lever C1, 2026-09-14/15 loss reads of `56233524` /
 # `56235916`, docs/STRATEGY_LOSS_READ_2026-09-15.md). _crop_tile_value()'s
 # ongoing branch credits one unit per `interval` days for the WHOLE remaining
