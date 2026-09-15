@@ -469,7 +469,7 @@ Statuses: `ready`, `claimed`, `running`, `done`, `rejected`, or `blocked`.
 ## 1. Submission queue — one attributable change per slot, in this order
 
 > **2026-09-15 (claude) — live queue is `docs/STRATEGY_LOSS_READ_2026-09-15.md` §4:** H3 `56233524` (40 eps, af 50%) and H4 `56235916` (38 eps, af 50%) both judged NOT promotable. New #1 = C2 `ENABLE_HERD_INSTALL_FIRST` (mechanical: 78/78 games buy ~11 animals, place ~8; crew `PICKUP`s 81×/game, `PLACE`s 8×) → C1 `ENABLE_CROP_VALUE_LIFESPAN` → union → herd target 14. Files to be owned by the C2 row: `agents/main_v43_herdinstall.py`, `tests/test_herd_install_first.py`.
-> **C2 SUBMITTED 2026-09-15 14:17 UTC as `56256380`** (gate 93-0-3/96, 0 err, +2.6% CI[+0.0,+5.7], af 42/42). C1 built as `agents/main_v44_croplifespan.py` + `tests/test_crop_value_lifespan.py` (6 tests; probe: OFF 36 TOMATO@d15/82k → ON 51 STRAWBERRY/96k in 2 of 3 seeds); gate running.
+> **C2 SUBMITTED 2026-09-15 14:17 UTC as `56256380`** (gate 93-0-3/96, 0 err, +2.6% CI[+0.0,+5.7], af 42/42). C1 built as `agents/main_v44_croplifespan.py` + `tests/test_crop_value_lifespan.py` (6 tests; probe: OFF 36 TOMATO@d15/82k → ON 51 STRAWBERRY/96k in 2 of 3 seeds); **C1 SUBMITTED 2026-09-15 14:22 UTC as `56256499`** (gate 93-0-3/96, 0 err, +2.6% CI[-0.5,+6.2], af 42/42). Tracked pair `56256499` + `56256380`; judge each at ≥20 eps; if both hold → union `agents/main_v45_c2c1.py`.
 
 Discipline (from `docs/PLAN_RATING_IMPROVEMENT.md` Phase 0 — do not violate):
 only the promoted `main.py` goes to the real `kaggriculture` slug, never
