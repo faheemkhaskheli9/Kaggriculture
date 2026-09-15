@@ -803,7 +803,7 @@ def _carried_animal(inv):
     return None
 
 
-ENABLE_HERD_INSTALL_FIRST = False
+ENABLE_HERD_INSTALL_FIRST = True
 # HERD-INSTALL-FIRST (Lever C2, 2026-09-15 loss read of `56233524`/`56235916`,
 # 78 real-ladder eps, docs/STRATEGY_LOSS_READ_2026-09-15.md). In 78/78 games
 # we BUY ~11.4 animals and PLACE at most ~7.8: one animal sits in the shed
