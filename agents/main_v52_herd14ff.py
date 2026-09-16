@@ -282,7 +282,7 @@ ENABLE_F1_HERD_MATCH = True
 F1_OFF_WANT = {"COW": 3, "GOOSE": 3, "SHEEP": 0}
 F1_OFF_CAP = 6
 
-ENABLE_HERD_14 = False
+ENABLE_HERD_14 = True
 # HERD-14 (2026-09-16 loss read of 56259132, 36 eps / 16 L). After C2 the
 # realized herd is 12.2 (target 11-13) but the opponents in our losses run a
 # median 14 animals (12-31) and every loss is "out-scaled": opp +20-30k over

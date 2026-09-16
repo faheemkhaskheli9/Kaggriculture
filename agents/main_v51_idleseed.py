@@ -2191,7 +2191,7 @@ def _terminal_market_orders(obs, me, private):
     return (sells + hires)[:10]
 
 
-ENABLE_IDLE_SEED_BYPASS = False
+ENABLE_IDLE_SEED_BYPASS = True
 # IDLE-SEED-BYPASS (Lever M1, 2026-09-16 utilisation scan of 56259132 +
 # 56281675, 57 eps). Days 6-10 are a cash crater: quad 2 lands on day 6 for
 # $1,000 (money 1,489 -> 117 in 109713885), the P1/P3f reserve ramp then

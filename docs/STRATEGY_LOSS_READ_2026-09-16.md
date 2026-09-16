@@ -4,7 +4,8 @@ Scratch scripts (session temp, reduce replay JSON): plant_trace.py (per-day
 crop mix / idle tiles / seeds / action counts), mix13.py (d13 mix, idle tiles
 d15/d20, opp STR sells), strinv.py (STR inventory + realized prices), cc_replay.py
 (re-runs `choose_crops` on the real observation), income.py (daily $ by item,
-prices, herd fed state), milk.py (MILK/EGG/WOOL/FERT/STR prices d12-25 + herds).
+prices, herd fed state), milk.py (MILK/EGG/WOOL/FERT/STR prices d12-25 + herds);
+pt3: herd_bt_extract.py, herd_bt.py, util_scan.py, idle_scan.py.
 
 ## Findings, ranked by what we can act on
 
@@ -69,8 +70,62 @@ plants 1 STR + 23 WHEAT instead of 23 STR (mine 27 + opp 31 already saturate
 → **S2 (next): herd by drain** — COW/GOOSE/SHEEP `want` from MILK/EGG/WOOL
 drain vs opp herd supply (COW 0.5 MILK/day, GOOSE 1 EGG/day, SHEEP 1/3 WOOL/day).
 
-## Queue after this read
-1. Judge `56281675` (feed-first) at ≥20 eps → promote → re-gate HERD-14 on it.
-2. S1 `ENABLE_SHOP_DEMAND_VALUE` — gated, submit on the v45 parent (C3 held).
-3. S2 herd-by-drain (single flag) on whichever parent is promoted.
-4. H3 re-read only after the above.
+## E. Herd-by-drain (S2) backtest — WEAK, dropped as a sub candidate (pt3, 61 eps incl. 56281675/56282756)
+
+Scratch: herd_bt_extract.py / herd_bt.py (per-day shops, herds, MILK/EGG/WOOL
+inventory; re-runs the marginal-animal rule with `price_at`). Facts:
+- MILK is the swing line: revMILK median 5.3k with 0 milk shops by d12, 14.8k
+  with 1, 40k with ≥2 (per cow 1.0k / 2.8k / 6.9k). EGG never moves (d25 price
+  41-70 in all 61 games, log curve) — a goose is a flat ~2.1k. WOOL 4k/sheep.
+- Cows are bought d3-9 (4.0 cows by d9, 5.9 by d12) — before most draws. At
+  d9 the "0 milk shops known" rule (future-draw weight 0) calls goose in
+  15/61 games, 13 correctly; at d6 it is 10 right / 9 wrong; at d3 half wrong.
+- The payoff is asymmetric: a wrong goose call forfeits 2-5k per slot, a right
+  one saves only ~0.4-1.4k (a cow in a crashed market still earns ~1.7k vs a
+  goose's 2.1k). Net over the 61 games ≈ +400/game at best. Not worth a slot.
+
+## F. The day 6-10 cash crater is the reserve ramp blocking $10 seeds (pt3 headline → M1)
+
+Scratch: util_scan.py / idle_scan.py (tiles by kind per day; idle vs cash,
+seed/animal/land spend per day), replay trace of 109713885 d5-d13.
+- Tile use by day (57 eps): 1 quad d0-5 full (idle 2.5); quad 2 lands d6
+  (BUY_LAND $1,000, money 1,489 → 117 in the trace); idle 13.9 / 18.4 /
+  25.1 / 20.0 / 13.4 on d6-d10 ≈ 90 tile-days per game; 3 quads d11-12, then
+  labour-bound (idle 25 → 10 over d11-13 with 13-15k cash, plants 7-16/day).
+- Cash h0: d7 462, d8 415, d9 1,229 (min-of-day 149 / 272 / 936). Reserve
+  ramp `min(1400, 200+150*day)` = 1,250-1,400; P3f relax needs shed value +
+  90/animal ≥ 0.75× that and the shed is empty after the h1 sells → seed
+  budget `money - reserve` = 0. Seeds bought: d7 0.7, d8 4.4. Same hours we
+  pay $27-33 each for 2-4 BUY_PRODUCT WHEAT feed units.
+- Leftover seeds: at d7 the shed held 9 CARROT/WHEAT/STRAWBERRY seeds that
+  were never planted because `add_plant_tasks` only exposes PLANT tasks for
+  the chooser's picks (STR/MELON at d7+), so they sat while 15 tiles idled.
+- W vs L idle tile-days d6-11 are equal (114 vs 117) — this is income for
+  every game, not a loss discriminator. WHEAT: $10 → ~3 units in ~4 days
+  (feed or $25 sale, log curve never crashes); harvest lands d11-12 when
+  planting is labour-bound anyway, so it does not delay STRAWBERRY.
+- **M1 `ENABLE_IDLE_SEED_BYPASS`** (agents/main_v51_idleseed.py): when the
+  seed loop bought nothing and idle unreserved tiles exceed seeds on hand
+  (≥6), buy WHEAT seeds for the shortfall down to max(120, one day of feed
+  for the herd); the planter fills uncovered empty tiles with leftover seeds
+  (WHEAT first, then any crop inside plant-by). Day ≤ 12, hour ≤ 20.
+  Replayed d7-8 observations: 6-19 seeds/turn where OFF bought 0. 11 tests.
+- **Gate (compete_v51.log, 96 pairs vs promoted main): REJECTED.** 89-0-7 both,
+  af 46/46, 0 errors, but own money −8.6k mean (33/96 pairs positive), day-10
+  cash −9.8k, vs main 2-1-6. Pair 95 (animal_factory, same seed): candidate
+  bought 29 WHEAT seeds d8-10; at d10 it held WHEAT 18 / STR 12 vs baseline
+  STR 23; the higher fill tripped the land gate so quad 3 was bought at d9
+  ($2,000 → cash 151 at d10 vs 1,441) and the watering load delayed the
+  melon harvest (d10 sells 5.7k vs 15.1k; 4 melons still standing at d13).
+  Lesson: the d7-8 idle tiles are where the d9-10 STRAWBERRY wave lands;
+  wheat planted there matures d11-12 and displaces STR by 1-2 yields
+  (~$200/tile) for a $75 wheat cycle. The crater is an opportunity-cost
+  window, not free capacity. Flag stays OFF; no sub.
+
+## Queue after this read (pt3)
+1. `56281675` feed-first **PROMOTED** (20 eps, af 8-7, 667.3, animals 12.3) — `ENABLE_FEED_FIRST=True` on main.py.
+2. M1 `ENABLE_IDLE_SEED_BYPASS` — gated, **REJECTED** (F). OFF.
+3. HERD-14 re-gate on the feed-first parent (`agents/main_v52_herd14ff.py`, `compete_v52.log`): 91-0-5, 0 err, af 46/46, escapes fixed, animals 13.05 → 15.20, but own money −1.6k mean / −2.3k median (39/96 positive; vs animal_factory −3.1k, 15/46 positive) → **REJECTED**. Herd size is not the out-scaling lever (cf. §E).
+4. Judge `56282756` (S1) at ≥20 eps — the only open item. S2 dropped (E). H3 re-read last.
+
+Open question for the next read: the losses are still "out-scaled by animal_factory" (opp 100-124k vs our 52-83k at 20 eps of `56281675`) yet more animals (HERD-14) and more early tiles (M1) both lose money locally. The remaining candidates are on the demand side: S1's shop-aware crop value (pending) and, if it holds, a shop-aware *sell* pacing / product mix rather than more supply.
