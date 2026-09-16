@@ -298,7 +298,7 @@ HERD_14_CAP = 14
 HERD_14_MATCH_WANT = {"COW": 6, "GOOSE": 6, "SHEEP": 2}
 HERD_14_WANT = {"COW": 9, "GOOSE": 3, "SHEEP": 2}
 
-ENABLE_FEED_FIRST = False
+ENABLE_FEED_FIRST = True
 # C2b FEED-FIRST (2026-09-16 gate diagnostics on the promoted 56259132 build).
 # The promoted build loses 2.15 animals/game to escapes (206 events in 96 gate
 # games, 81/96 games hit, 70% GOOSE), every one at herd ~13 with a 3-hand crew,

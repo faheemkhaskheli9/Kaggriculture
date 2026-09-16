@@ -282,7 +282,7 @@ ENABLE_F1_HERD_MATCH = True
 F1_OFF_WANT = {"COW": 3, "GOOSE": 3, "SHEEP": 0}
 F1_OFF_CAP = 6
 
-ENABLE_HERD_14 = False
+ENABLE_HERD_14 = True
 # HERD-14 (2026-09-16 loss read of 56259132, 36 eps / 16 L). After C2 the
 # realized herd is 12.2 (target 11-13) but the opponents in our losses run a
 # median 14 animals (12-31) and every loss is "out-scaled": opp +20-30k over
@@ -297,28 +297,6 @@ ENABLE_HERD_14 = False
 HERD_14_CAP = 14
 HERD_14_MATCH_WANT = {"COW": 6, "GOOSE": 6, "SHEEP": 2}
 HERD_14_WANT = {"COW": 9, "GOOSE": 3, "SHEEP": 2}
-
-ENABLE_FEED_FIRST = False
-# C2b FEED-FIRST (2026-09-16 gate diagnostics on the promoted 56259132 build).
-# The promoted build loses 2.15 animals/game to escapes (206 events in 96 gate
-# games, 81/96 games hit, 70% GOOSE), every one at herd ~13 with a 3-hand crew,
-# and the shed held ~30 WHEAT at 199/206 of them -- a delivery failure, not a
-# supply one. Trace (seed 374193595 d14): 13 animals, 6 still unfed at h23,
-# while the crew spent turns on CARE / HARVEST / COLLECT_FERTILIZER of animals
-# already fed and on a 9-hour install walk to a corner coop. Two unfed days
-# forfeits the animal (engine: consecutive_unfed >= 2 -> structure stays,
-# animal gone). The crew has more daily work than hours at herd >= 12
-# (13 FEED + 13 COLLECT + CARE + HARVEST vs 3 hands x 22h), so a blanket
-# "feed everything first" (agents/main_v47_feedfirst.py) cut escapes to 0.5
-# but cost -10.8k/game in lost fertilizer + care bonus (gate 1-8 vs main).
-# Engine: an unfed day costs only that day's care bonus (yield still accrues,
-# fertilizer still drops); only the SECOND consecutive unfed day loses the
-# animal. ON: an animal that is unfed today AND already carries
-# consecutive_unfed >= 1 is AT RISK and outranks every other crew errand --
-# a crew hand carrying wheat walks/feeds those first (no on-tile HARVEST /
-# COLLECT / CARE detours while one is open), a hand without wheat fetches
-# more from the shed instead of harvesting where it stands. With no at-risk
-# animal open the crew ordering is exactly the prior one. OFF: byte no-op.
 
 ENABLE_P2_FERTILIZER_STAPLE = True
 # P2 (docs/PLAN_LADDER_V10.md, v10). ON: sell FERTILIZER as a staple (near-flat
@@ -1306,10 +1284,6 @@ def animal_crew_actions(obs, me, private, reserved, crew_idx, positions, invs):
                   if t.get("fed_today", False) and not t.get("cared_today", False)}
     yield_or_fert = {p for p, t in placed
                      if t.get("yield_units", 0) > 0 or t.get("fertilizer_available", False)}
-    # C2b: unfed today and already one day behind -> escapes at day end.
-    at_risk = {p for p, t in placed
-               if not t.get("fed_today", False)
-               and int(t.get("consecutive_unfed", 0) or 0) >= 1}
     in_shed_animals = [a for a in ANIMALS if int(shed.get(a, 0)) > 0]
     shed_wheat = int(shed.get("WHEAT", 0))
     by_pos = {p: t for p, t in placed}
@@ -1376,20 +1350,15 @@ def animal_crew_actions(obs, me, private, reserved, crew_idx, positions, invs):
 
         # 1. standing on one of our animals -> do the highest-value thing here
         here = by_pos.get(pos)
-        # C2b: with an at-risk animal open and wheat reachable (in hand or
-        # in the shed), feeding it outranks every other crew errand.
-        urgent_open = [p for p in at_risk if p not in claimed] if ENABLE_FEED_FIRST else []
-        feed_urgent = bool(urgent_open) and (wheat > 0 or shed_wheat > 0)
         if here is not None and pos not in claimed:
             if pos in feedable and wheat > 0:
                 out[idx] = ["FEED"]; claimed.add(pos); continue
-            if not feed_urgent:
-                if here.get("yield_units", 0) > 0:
-                    out[idx] = ["HARVEST"]; claimed.add(pos); continue
-                if here.get("fertilizer_available", False):
-                    out[idx] = ["COLLECT_FERTILIZER"]; claimed.add(pos); continue
-                if pos in care_spots:
-                    out[idx] = ["CARE"]; claimed.add(pos); continue
+            if here.get("yield_units", 0) > 0:
+                out[idx] = ["HARVEST"]; claimed.add(pos); continue
+            if here.get("fertilizer_available", False):
+                out[idx] = ["COLLECT_FERTILIZER"]; claimed.add(pos); continue
+            if pos in care_spots:
+                out[idx] = ["CARE"]; claimed.add(pos); continue
 
         # 1b. ANIMAL_CARRY_GUARD (a): an animal in hand gets placed before
         # anything else, whatever the shed holds.
@@ -1422,11 +1391,8 @@ def animal_crew_actions(obs, me, private, reserved, crew_idx, positions, invs):
 
         # 3. walk to the nearest animal that needs service
         goals = [p for p in pending_feed if wheat > 0]
-        if feed_urgent and wheat > 0:
-            goals = list(urgent_open)              # at-risk animals only
-        else:
-            goals += [p for p in yield_or_fert if p not in claimed]
-            goals += [p for p in care_spots if p not in claimed]
+        goals += [p for p in yield_or_fert if p not in claimed]
+        goals += [p for p in care_spots if p not in claimed]
         if goals:
             tgt = min(goals, key=lambda p: dist(pos, p))
             claimed.add(tgt)
