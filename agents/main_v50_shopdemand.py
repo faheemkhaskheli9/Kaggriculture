@@ -1050,7 +1050,7 @@ ENABLE_CROP_CROWD_OWN_ONLY = False
 # stays). Day < 7 bootstrap and the OFF path are byte no-ops.
 
 
-ENABLE_SHOP_DEMAND_VALUE = False
+ENABLE_SHOP_DEMAND_VALUE = True
 # SHOP-DEMAND-VALUE (Lever S1, 2026-09-16 loss read of `56259132`, 37 eps).
 # The market's only sink is the town: each unlocked shop instance eats 1 unit
 # of each of its products every 4 steps (6/day; 12/day for a single-product

@@ -1030,7 +1030,7 @@ ENABLE_CROP_VALUE_LIFESPAN = True
 # harvested gradually over many days).
 _PICK_DECAY = {"WHEAT": 3, "CARROT": 2, "TOMATO": 1, "STRAWBERRY": 1, "MELON": 4}
 
-ENABLE_CROP_CROWD_OWN_ONLY = False
+ENABLE_CROP_CROWD_OWN_ONLY = True
 # CROP-CROWD-OWN-ONLY (Lever C3, 2026-09-16 loss read of `56259132`, 37 eps).
 # choose_crops()'s Lever-2 loop prices each crop at price_at(market inventory
 # + opp_planted_tiles * _PICK_DECAY + own picks this call). The opponent-tile
@@ -1048,82 +1048,6 @@ ENABLE_CROP_CROWD_OWN_ONLY = False
 # (3 L / 2 W). ON: the projection starts at the observed market inventory
 # and only this call's own picks discount it (the intra-call diversification
 # stays). Day < 7 bootstrap and the OFF path are byte no-ops.
-
-
-ENABLE_SHOP_DEMAND_VALUE = False
-# SHOP-DEMAND-VALUE (Lever S1, 2026-09-16 loss read of `56259132`, 37 eps).
-# The market's only sink is the town: each unlocked shop instance eats 1 unit
-# of each of its products every 4 steps (6/day; 12/day for a single-product
-# shop) plus the town centre's 1/day, and one shop is drawn at random every
-# 3 days up to 8 (engine _town_consume / SHOPS). Nothing else drains
-# inventory, so a product's price can only hold if combined production stays
-# under that drain. The chooser never looked at `town.unlocked_shops`: it
-# plants 50-55 STRAWBERRY in every game. Ladder: all 7 STRAWBERRY crashes
-# (price <= 66 at d25; 6 losses incl. the three worst finals 31-35k) had 0-1
-# strawberry shops among the first four draws (drain <= 6/day at d12); every
-# game with >= 2 had d25 prices 196-267. ON: the Lever-2 sale price is the
-# observed-inventory price scaled by how much of the crop's projected supply
-# (own tiles incl. this call's picks + opponent tiles, units/day) the market
-# can absorb -- drain from unlocked shops, the expected drain of the draws
-# still to come, and the below-I0 inventory buffer spread over the crop's
-# production window; the part of this tile's output the room left by the
-# other tiles cannot take is worth the $1 floor. STRAWBERRY value therefore
-# drops to ~0 once the tiles already planted (ours + theirs) saturate the
-# drain, and the remaining slots go to whatever the shops actually eat. OFF path and the
-# day < 7 bootstrap are byte no-ops.
-SHOP_DRAW_DAYS = (3, 6, 9, 12, 15, 18, 21, 24)   # townShopUnlockInterval=3, MAX 8
-SHOP_UNITS_PER_DAY = 6                           # 24 steps / townShopSellInterval 4
-SHOP_FUTURE_WEIGHT = 1.0                         # expected drain of undrawn shops
-
-
-def _shop_drain(obs, day):
-    """Expected units/day the town removes per product from this day on:
-    unlocked shops (single-product shops count double, as the engine does),
-    the town centre's 1/day, and the mean contribution of shops not yet drawn."""
-    shops = [str(s).strip().upper().replace(" ", "_").replace("-", "_")
-             for s in (obs.get("town") or {}).get("unlocked_shops", [])]
-    drain = Counter()
-    for s in shops:
-        prods = SHOPS.get(s, [])
-        mult = 2 if len(prods) == 1 else 1
-        for item in prods:
-            drain[item] += SHOP_UNITS_PER_DAY * mult
-    draws_left = min(max(0, 8 - len(shops)), sum(1 for d in SHOP_DRAW_DAYS if d > day))
-    if draws_left and SHOP_FUTURE_WEIGHT > 0:
-        per_draw = Counter()
-        for prods in SHOPS.values():
-            mult = 2 if len(prods) == 1 else 1
-            for item in prods:
-                per_draw[item] += SHOP_UNITS_PER_DAY * mult / len(SHOPS)
-        for item, v in per_draw.items():
-            drain[item] += SHOP_FUTURE_WEIGHT * draws_left * v
-    for item in BASE:
-        if item != "FERTILIZER":
-            drain[item] += 1.0
-    return drain
-
-
-def _crop_supply_rate(crop, fy, my, ongoing):
-    """Units/day one planted tile puts on the market over its producing life."""
-    if ongoing:
-        return 1.0 / INTERVAL[crop]
-    window_start = (my + 1) // 2
-    yield_est = min(MAX_YIELD[crop], my - window_start + 1)
-    return yield_est / max(1, my + 1)
-
-
-def _absorbed_price(crop, price, tiles, drain, deficit, prod_days, fy, my, ongoing):
-    """Marginal sale price of one more tile once the town's capacity is spent:
-    `tiles` tiles (ours incl. this one + the opponent's) each put `rate`
-    units/day on the market; the town eats `drain`/day plus the below-I0
-    `deficit` spread over `prod_days`. Whatever room the other tiles leave is
-    sold at `price`; this tile's remainder goes at the $1 floor (a crashed
-    market stays crashed while the others keep producing)."""
-    rate = _crop_supply_rate(crop, fy, my, ongoing)
-    cap = drain + max(0.0, deficit) / max(1, prod_days)
-    room = cap - rate * max(0, tiles - 1)
-    absorb = max(0.0, min(1.0, room / rate)) if rate > 0 else 1.0
-    return 1.0 + (price - 1.0) * absorb
 
 
 def _crop_tile_value(crop, cost, fy, my, ongoing, remaining, price):
@@ -1678,22 +1602,12 @@ def choose_crops(obs, me, private, counts, plant_slots, intent=None):
                 + (0 if ENABLE_CROP_CROWD_OWN_ONLY else opp[c] * _PICK_DECAY[c])
                 for c in CROPS}
     picks = []
-    drain = _shop_drain(obs, day) if ENABLE_SHOP_DEMAND_VALUE else None
     for _ in range(plant_slots):
         best, best_val = None, 0.0
         for crop, (cost, fy, my, ongoing, plant_by) in CROPS.items():
             if day > plant_by or cur[crop] >= caps.get(crop, 10**9):
                 continue
-            if ENABLE_SHOP_DEMAND_VALUE:
-                # S1: observed price, scaled by what the town can actually eat
-                # once this tile, our other tiles and the opponent's produce.
-                price = _absorbed_price(
-                    crop, price_at(crop, mkt_inv.get(crop, 10000)),
-                    cur[crop] + 1 + opp[crop], drain[crop],
-                    10000 - mkt_inv.get(crop, 10000), remaining - fy,
-                    fy, my, ongoing)
-            else:
-                price = price_at(crop, proj_inv[crop])
+            price = price_at(crop, proj_inv[crop])
             val, _ = _crop_tile_value(crop, cost, fy, my, ongoing, remaining, price)
             if val > best_val:
                 best, best_val = crop, val
