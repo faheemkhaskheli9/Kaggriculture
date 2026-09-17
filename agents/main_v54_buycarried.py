@@ -319,7 +319,7 @@ ENABLE_SHEEP_ON_YARN = True
 SHEEP_ON_YARN_MATCH_WANT = {"COW": 5, "SHEEP": 5, "GOOSE": 1}
 SHEEP_ON_YARN_WANT = {"COW": 8, "SHEEP": 4, "GOOSE": 1}
 
-ENABLE_BUY_COUNT_CARRIED = False
+ENABLE_BUY_COUNT_CARRIED = True
 # BUY-COUNT-CARRIED (2026-09-17 read of 56307690, 26 eps). The one-per-turn
 # BUY_ANIMAL loop compares placed + shed against the species target, but an
 # animal a crew hand has already PICKUPed from the shed (and not yet PLACEd)
@@ -329,12 +329,6 @@ ENABLE_BUY_COUNT_CARRIED = False
 # 11-12 target (COW 6 / GOOSE 6-7 vs want 5 / 5). ON: the buy loop counts
 # animals carried in hand inventories as owned (`private.inventories`), in
 # both the one-per-turn and the HERDBATCH branch. OFF: exact prior behaviour.
-# GATE 2026-09-17 (agents/main_v54_buycarried.py, compete_v54.log +
-# compete_v54b.log, 192 pairs): herd 13 -> 11 and the 4th cow by d9 (over the
-# 1-quad cap of 3) disappears; af 73/73 both ways, 0 err, own money +4.0k /
-# +1.4k mean but run-2 median -1.6k (46/96 up) and the mirror vs main 7-13.
-# The overshoot is load-bearing -> REJECTED, dormant OFF. A re-try must pair
-# the count fix with explicit targets equal to the realized herd (6/6/1).
 
 
 ENABLE_FEED_FIRST = True

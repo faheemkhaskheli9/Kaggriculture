@@ -174,6 +174,33 @@ placed + shed against want, so a purchase that has not yet landed in the
 shed lets a second buy through. Mechanical; worth a look if SHEEP-ON-YARN
 holds (extra $300-500 per game and one crop tile).
 
+**Outcome (2026-09-17, `56307690` at 25 eps): SHEEP-ON-YARN PROMOTED.** 14-0-10,
+af 12-10 = 54.5%, 0 err, ladder 661.6 (tie with S1's 662.6; feed-first 644.4).
+Yarn by d9 (n=10): sheep d20 5.7 vs 1.0, WOOL d25 228 / 0 crashes, W 6/10 vs
+3/9, own money 85.0k vs 70.6k. Late/no yarn (n=11): 8/11, 88.5k vs 87.7k =
+unchanged code path. Yarn d10-17 (n=4): 0/4 against 94-141k opponents but own
+money 75.0k = parent 75.1k; the herd reaches 5/7/5 = 17 there because placed
+geese are kept when sheep are added (cap applies to new buys only).
+
+## H. The BUY_ANIMAL overshoot is a carried-animal blind spot, and it is load-bearing (2026-09-17, 26 eps of `56307690`)
+
+Scan (`overshoot_scan.py`): 6.7 of 14.2 BUY_ANIMAL orders per game are issued
+while a crew hand already carries that species. The loop compares placed +
+shed against the target; an animal PICKUPed from the shed but not yet PLACEd
+is in neither, so the turn after every pickup the loop sees a deficit and
+buys again. Realized herd 13.15 placed vs an 11-12 want; 14 bought, one sits
+unplaced in the shed all game; 36 PICKUPs per game for 13 PLACEs.
+
+Candidate `ENABLE_BUY_COUNT_CARRIED` (`agents/main_v54_buycarried.py`): count
+`private.inventories` animals as owned. Probe: bought 14 -> 11, PICKUP 36 ->
+12-14, placed 13 -> 11, shed leftover 0 -- and the 4th cow by d9 (over the
+1-quad cap of 3) disappears. Two 96-pair gates (`compete_v54.log`,
+`compete_v54b.log`): af 73/73 both ways, 0 err, own money +4.0k / +1.4k mean
+but run-2 median -1.6k (46/96 up), mirror vs main 7-13. **REJECTED**: the
+overshoot is the herd every promoted read was achieved with. A re-try must
+pair the count fix with explicit realized targets (match 6/6/1, 1-quad cap 4)
+so only the churn goes away; expected value is small (~$450 + ~23 hand-turns).
+
 ## Queue after this read (pt3)
 1. `56281675` feed-first **PROMOTED** (20 eps, af 8-7, 667.3, animals 12.3) — `ENABLE_FEED_FIRST=True` on main.py.
 2. M1 `ENABLE_IDLE_SEED_BYPASS` — gated, **REJECTED** (F). OFF.
@@ -185,5 +212,6 @@ Open question for the next read: the losses are still "out-scaled by animal_fact
 ## Queue after this read (2026-09-17)
 1. `56282756` S1 at 38 eps: 20-0-18, af 50.0%, STR crashes 5/38 = parent -> **NOT PROMOTABLE**, OFF. `56281675` feed-first at 38 eps 20-0-18, af 51.6%, live 638.5 -- stays promoted.
 2. SHEEP-ON-YARN `ENABLE_SHEEP_ON_YARN` (`agents/main_v53_sheepyarn.py`) -- gated clean, **SUBMITTED `56307690`**. Judge at >=20 eps: af >= 51.6% AND ladder >= 662.6; primary = avg SHEEP >= 4 and WOOL d25 >= 199 in yarn-store games, W-rate in (yarn & total sheep >= 6) games > 5/29.
-3. If it holds: BUY_ANIMAL overshoot fix (section G open item), then a milk-shop-conditional cow/sheep split (S2 was dropped only because cows are bought before the draws; sheep slots are decided later).
-4. C3, M1, HERD-14, S2 stay OFF/dropped. H3 re-read last.
+3. `56307690` **PROMOTED** at 25 eps (af 54.5%, sheep 5.7 / WOOL 228 / 0 crashes in yarn-by-d9 games). BUY_ANIMAL overshoot fix (section H) gated x2 and **REJECTED** -- the overshoot is load-bearing.
+4. Next: milk-shop-conditional cow/sheep split (S2 was dropped only because cows are bought before the draws; sheep slots are decided later); the yarn d10-17 case (placed geese kept -> 17-animal herd, 0/4) gets a second look once more eps land.
+5. C3, M1, HERD-14, S2, BUY-COUNT-CARRIED stay OFF/dropped. H3 re-read last.
