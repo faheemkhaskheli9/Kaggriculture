@@ -336,7 +336,7 @@ ENABLE_BUY_COUNT_CARRIED = False
 # The overshoot is load-bearing -> REJECTED, dormant OFF. A re-try must pair
 # the count fix with explicit targets equal to the realized herd (6/6/1).
 
-ENABLE_COW_ON_MILK = False
+ENABLE_COW_ON_MILK = True
 # COW-ON-MILK (2026-09-17 read of 56259132/56281675/56282756/56307690, 139
 # eps). MILK is base 160 / I0 10000 / T 122 and, like WOOL, only the town shop
 # draw sinks it (ICE_CREAM_SHOP, PIZZA_SHOP, SMOOTHIE_SHOP = 3 of the 8 shops,

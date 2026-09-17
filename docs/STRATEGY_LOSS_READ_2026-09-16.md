@@ -209,9 +209,33 @@ so only the churn goes away; expected value is small (~$450 + ~23 hand-turns).
 
 Open question for the next read: the losses are still "out-scaled by animal_factory" (opp 100-124k vs our 52-83k at 20 eps of `56281675`) yet more animals (HERD-14) and more early tiles (M1) both lose money locally. The remaining candidates are on the demand side: S1's shop-aware crop value (pending) and, if it holds, a shop-aware *sell* pacing / product mix rather than more supply.
 
+## I. MILK has the same sink as WOOL, and our 5th-6th cows are bought after the draw has already said no (2026-09-17, 139 eps)
+
+Scan (`milk_scan.py` / `milk_scan2.py` over `56259132`/`56281675`/`56282756`/
+`56307690`): the milk-buying shops are ICE_CREAM_SHOP, PIZZA_SHOP and
+SMOOTHIE_SHOP, 3 of the 8; the engine draws one shop every 3 days from d3,
+with replacement, appended to `unlocked_shops` in order. P(no milk shop in
+the first 3 draws) = 26% of games, and there MILK d25 <= 40 in 29/36 (81%,
+mean 27); none by d12 -> 21/22 (95%). A milk shop by d6 -> 7/78 crashes,
+mean 180. Our cows: 3 by d6, 4 by d9, 5th and 6th between d9 and d12 -- the
+two late cows are bought right after the third draw. In the 15 (yarn by d9,
+no milk by d12) games we still ran 5-6 cows into a $5-13 MILK price.
+
+Candidate `ENABLE_COW_ON_MILK` (`agents/main_v55_cowmilk.py`): from d9, if no
+MILK shop and a YARN_STORE are among the first 3 draws, cap COW want at 4 and
+give the freed slots to SHEEP (placed/shed cows kept; sticky: a d12+ milk
+shop still crashes 8/14 and a cow bought after d12 never pays back its $400
++ feed). Three gates on the same seed: cows-to-geese when no yarn was a wash
+(15 pairs median -1.0k, 4 up) and a d12 yarn draw stacked sheep on the extra
+geese (17-18 animals, -12k twice) -> dropped; any-yarn still hit the d12-yarn
+case (-8.7k / -3.0k) -> yarn must be an early draw too. Final
+(`compete_v55c.log`): 91-3-2, 0 err, af 35/35, I/S/R 1/95/0, CI [+0.0, +1.6];
+the 12 targeted pairs +4.3k mean / +5.2k median own money (9 up, herd 4/7/1
+vs 6/6/1), 84 pairs byte-identical. **SUBMITTED `56311727`.**
+
 ## Queue after this read (2026-09-17)
 1. `56282756` S1 at 38 eps: 20-0-18, af 50.0%, STR crashes 5/38 = parent -> **NOT PROMOTABLE**, OFF. `56281675` feed-first at 38 eps 20-0-18, af 51.6%, live 638.5 -- stays promoted.
 2. SHEEP-ON-YARN `ENABLE_SHEEP_ON_YARN` (`agents/main_v53_sheepyarn.py`) -- gated clean, **SUBMITTED `56307690`**. Judge at >=20 eps: af >= 51.6% AND ladder >= 662.6; primary = avg SHEEP >= 4 and WOOL d25 >= 199 in yarn-store games, W-rate in (yarn & total sheep >= 6) games > 5/29.
 3. `56307690` **PROMOTED** at 25 eps (af 54.5%, sheep 5.7 / WOOL 228 / 0 crashes in yarn-by-d9 games). BUY_ANIMAL overshoot fix (section H) gated x2 and **REJECTED** -- the overshoot is load-bearing.
-4. Next: milk-shop-conditional cow/sheep split (S2 was dropped only because cows are bought before the draws; sheep slots are decided later); the yarn d10-17 case (placed geese kept -> 17-animal herd, 0/4) gets a second look once more eps land.
+4. COW-ON-MILK (section I) built, gated x3 and **SUBMITTED `56311727`** -- judge at >=20 eps on the (yarn by d9, no milk by d9) bucket. Next after that: the yarn d10-17 case (placed geese kept -> 17-animal herd, 0/4 on the ladder, -8.7k/-12k in the gates whenever a late yarn draw adds sheep on top of geese) -- cap total herd when sheep are added late, or fill only freed slots.
 5. C3, M1, HERD-14, S2, BUY-COUNT-CARRIED stay OFF/dropped. H3 re-read last.
