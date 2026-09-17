@@ -5,7 +5,12 @@ crop mix / idle tiles / seeds / action counts), mix13.py (d13 mix, idle tiles
 d15/d20, opp STR sells), strinv.py (STR inventory + realized prices), cc_replay.py
 (re-runs `choose_crops` on the real observation), income.py (daily $ by item,
 prices, herd fed state), milk.py (MILK/EGG/WOOL/FERT/STR prices d12-25 + herds);
-pt3: herd_bt_extract.py, herd_bt.py, util_scan.py, idle_scan.py.
+pt3: herd_bt_extract.py, herd_bt.py, util_scan.py, idle_scan.py;
+2026-09-17 (§G): shop_scan.py (STR/MILK d25 prices, shops by d12, crop mix per
+game), top_trace.py <ep> (day-by-day both farms: money, mix, herd, hands, prices,
+opp market orders), herd_mix_scan.py / wool_scan.py (herd by kind, wool price vs
+yarn-store draws and sheep counts), probe_yarn.py <agent> <seeds> (local yarn
+day / herd / wool / final vs animal_factory).
 
 ## Findings, ranked by what we can act on
 
@@ -122,6 +127,53 @@ seed/animal/land spend per day), replay trace of 109713885 d5-d13.
   (~$200/tile) for a $75 wheat cycle. The crater is an opportunity-cost
   window, not free capacity. Flag stays OFF; no sub.
 
+## G. WOOL is the held-up product and sheep are the out-scaling lever — gated by the yarn-store draw (2026-09-17, 76 eps of `56281675` + `56282756`)
+
+Both subs at 38 eps sit on the same plateau: 20-0-18 each, animal_factory
+16-15 / 15-15, mean own money 81.0k / 80.1k, and the 18 losses are still
+out-scaled (opp 95-174k). Tracing the 161-173k winners (`top_trace.py`
+109918076 / 109983266): 6 COW + 11 SHEEP by d11, STR33 + WHE24, ~10 hands,
+and from d15 they bank 8-10k/day while we bank 1-4k/day with STR45 and 5
+COW / 5 GOOSE / 1 SHEEP. Their herd income is roughly 6 cows x 4 MILK x ~130
+= 3.1k plus 11 sheep x 2 WOOL x ~240 = 5.3k per day; WOOL stayed at 232-244
+for the whole game.
+
+Engine (`market_price`): every product has I0 = 10000; WOOL is base 200,
+T = 105, log-shaped +20% below I0 (to ~240) and a *square* -320% above it, so
+it floors at $5 once the market holds ~105 units over I0. The only sink is
+`_town_consume`, and YARN_STORE is the one single-product shop (12 WOOL/day).
+
+Across the 76 games (`wool_scan.py`):
+
+| condition | n | WOOL d25 mean | crashes (<=66) | our W |
+|---|---|---|---|---|
+| YARN_STORE drawn by d9 | 27 | 243-250 | 0 | 9/27 |
+| no YARN_STORE by d29 | 28 | 78 | 15 | 20/28 |
+| >=1 yarn by d29 & total sheep >= 6 | 29 | 231 | 1 | **5/29** |
+| no yarn & total sheep >= 6 | 13 | 25 | 11 | 8/13 |
+
+Opponent sheep count at d20 is the strongest strength correlate: 8+ sheep ->
+opp 98k, we win 4/19; <=2 sheep -> opp 38-77k, we win 14/15. Our own herd
+averages 5.7 COW / 1.1 SHEEP / 5.3 GOOSE (EGG d25 41-69 always; MILK d25 <=
+100 in 32/76). Per animal-day at d25 prices: goose 4 x ~50 = ~200 ($300),
+cow 4 x ~130 = ~520 but <= 400 in 42% of games ($400), sheep 2 x ~240 = ~480
+when a yarn store exists and ~10 when not ($500).
+
+**Candidate SHEEP-ON-YARN (`ENABLE_SHEEP_ON_YARN`, v53):** while
+`demand_counts()["WOOL"] >= 1`, the goose slots go to sheep -- herd-match
+want COW5/SHEEP5/GOOSE1, non-match COW8/SHEEP4/GOOSE1, SHEEP ordered before
+GOOSE so the one-per-turn buy loop fills sheep first; placed/shed animals
+kept; no yarn store -> exact prior targets. Gate 91-3-2, 0 err, af 35/35
+(+1.5k), I/S/R 2/94/0, +2.9k mean. 8-seed probe vs animal_factory: the 3
+seeds with a yarn store by d9 end SH6/CO5-6/GO1 and +13.5k / +35.5k / +24.8k
+own money; the rest are byte-identical games. **Submitted `56307690`.**
+
+Open (not built): the realized herd overshoots the want by 1-2 (probe: GOOSE
+6-7 vs want 5, COW 6 vs 5) -- the one-per-turn BUY_ANIMAL loop compares
+placed + shed against want, so a purchase that has not yet landed in the
+shed lets a second buy through. Mechanical; worth a look if SHEEP-ON-YARN
+holds (extra $300-500 per game and one crop tile).
+
 ## Queue after this read (pt3)
 1. `56281675` feed-first **PROMOTED** (20 eps, af 8-7, 667.3, animals 12.3) — `ENABLE_FEED_FIRST=True` on main.py.
 2. M1 `ENABLE_IDLE_SEED_BYPASS` — gated, **REJECTED** (F). OFF.
@@ -129,3 +181,9 @@ seed/animal/land spend per day), replay trace of 109713885 d5-d13.
 4. Judge `56282756` (S1) at ≥20 eps — the only open item. S2 dropped (E). H3 re-read last.
 
 Open question for the next read: the losses are still "out-scaled by animal_factory" (opp 100-124k vs our 52-83k at 20 eps of `56281675`) yet more animals (HERD-14) and more early tiles (M1) both lose money locally. The remaining candidates are on the demand side: S1's shop-aware crop value (pending) and, if it holds, a shop-aware *sell* pacing / product mix rather than more supply.
+
+## Queue after this read (2026-09-17)
+1. `56282756` S1 at 38 eps: 20-0-18, af 50.0%, STR crashes 5/38 = parent -> **NOT PROMOTABLE**, OFF. `56281675` feed-first at 38 eps 20-0-18, af 51.6%, live 638.5 -- stays promoted.
+2. SHEEP-ON-YARN `ENABLE_SHEEP_ON_YARN` (`agents/main_v53_sheepyarn.py`) -- gated clean, **SUBMITTED `56307690`**. Judge at >=20 eps: af >= 51.6% AND ladder >= 662.6; primary = avg SHEEP >= 4 and WOOL d25 >= 199 in yarn-store games, W-rate in (yarn & total sheep >= 6) games > 5/29.
+3. If it holds: BUY_ANIMAL overshoot fix (section G open item), then a milk-shop-conditional cow/sheep split (S2 was dropped only because cows are bought before the draws; sheep slots are decided later).
+4. C3, M1, HERD-14, S2 stay OFF/dropped. H3 re-read last.

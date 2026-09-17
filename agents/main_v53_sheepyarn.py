@@ -298,7 +298,7 @@ HERD_14_CAP = 14
 HERD_14_MATCH_WANT = {"COW": 6, "GOOSE": 6, "SHEEP": 2}
 HERD_14_WANT = {"COW": 9, "GOOSE": 3, "SHEEP": 2}
 
-ENABLE_SHEEP_ON_YARN = False
+ENABLE_SHEEP_ON_YARN = True
 # SHEEP-ON-YARN (2026-09-17 read of 56281675 + 56282756, 76 eps). Engine:
 # WOOL is base 200 / I0 10000 / T 105 -- it sits at 200-250 while the market
 # inventory is below I0 and collapses to the $5 floor once ~105 units above
