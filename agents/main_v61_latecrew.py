@@ -1088,7 +1088,7 @@ def _fert_ticks_covered(crop, age):
     return sum(1 for t in CROP_FERT_TICK_AGES.get(crop, ()) if age + 1 <= t <= age + 3)
 
 
-ENABLE_LATE_CREW = False
+ENABLE_LATE_CREW = True
 # LATE_CREW (2026-09-18; 9-ep early read of 56327834 + 31-ep read of the
 # promoted 56321057, scratch late_crew.py / weed_death.py). market_orders
 # hires the full crew (13 -> MAXHANDS_12 cap 12) only while day < 27 and
