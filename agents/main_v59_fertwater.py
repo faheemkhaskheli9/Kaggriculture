@@ -1003,7 +1003,7 @@ CROP_FERT_MARGIN = 1.5            # covered-tick value must beat 1.5x fert price
 CROP_FERT_PICKUP_MAX = 3
 CROP_FERT_TICK_AGES = {"TOMATO": (8, 9, 10, 11), "STRAWBERRY": (10, 12, 14, 16)}
 
-ENABLE_FERT_WATER_PRIORITY = False
+ENABLE_FERT_WATER_PRIORITY = True
 # FERT_WATER_PRIORITY (2026-09-18; 29-ep read of the promoted CROP-FERTILIZE
 # build 56321057, scratch fert_scan2.py). The engine pays the fertilizer +1
 # only when the plant was ALSO watered on the day the tick resolves
