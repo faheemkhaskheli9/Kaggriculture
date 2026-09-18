@@ -336,7 +336,7 @@ ENABLE_BUY_COUNT_CARRIED = False
 # The overshoot is load-bearing -> REJECTED, dormant OFF. A re-try must pair
 # the count fix with explicit targets equal to the realized herd (6/6/1).
 
-ENABLE_BUY_COUNT_REALIZED = False
+ENABLE_BUY_COUNT_REALIZED = True
 # BUY-COUNT-REALIZED (2026-09-18 read of 56307690+56311727, 75 eps): the
 # churn-only retry of BUY-COUNT-CARRIED. The re-buy overshoot is +1 on each
 # species with a multi-animal want in 50-60% of games (noyarn match 5/1/5 ->

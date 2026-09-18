@@ -251,6 +251,16 @@ Every one of the 14 late-yarn games ends at 15-19 animals on a 3-quad farm whose
 
 **Verdict: REJECTED, dormant OFF.** The herd-size story was wrong: a 500-coin sheep under WOOL ~245 pays for itself even stacked on six kept geese, so the cap only forfeits wool. The late-yarn bucket's own money (81.8k) sits at the no-yarn level (83.6k); the 5/14 comes from the opponents, who already hold 4-9 sheep when the yarn store lands and cash 97k there against 78-85k elsewhere. Owning sheep *before* the draw is the general "sheep are cheap" economy question, benched. Do not retry a total-herd cap.
 
+## K. The churn-only BUY-COUNT retry cannot beat shop-draw noise (2026-09-18, 75 eps + 192 gate pairs)
+
+**Read** (`56307690` + `56311727`, scratch `overshoot_scan.py`): the re-buy overshoot is +1 on each multi-animal species in 50-60% of games -- noyarn match 5/1/5 gets COW +1 in 17/33 and GOOSE +1 in 17/33, yarn match 5/5/1 gets +1 on COW and SHEEP in 18/29, milk-cap 4/6/1 lands 5/7/1 -- and 4 cows stand by d9 in 74/75 games against the 1-quad cap of 3. Buys 14.2-14.9 per game for 13.3 placed; 120-137 PICKUPs per game.
+
+**Candidate** BUY-COUNT-REALIZED `ENABLE_BUY_COUNT_REALIZED` (`agents/main_v57_buyrealized.py`, 12 tests, suite 174/174): carried animals count as owned (the v54 fix) + every species with want >= 2 bumped +1 when the bumped total fits the quad cap (match 6/1/6, 6/6/1, milk-cap 5/7/1 = 13) + 1-quad cap 4.
+
+**Gate** x2, 96 pairs each: 95-0-1 both, 0 err, af 47/47 and 42/42, I/S/R 1/94/1 both. Churn removed as designed (buys 14.8 -> 13.6, PICKUPs 136 -> 120, cows by d9 4.0 both). Own money **+3,187 mean / +2,762 median (54/96 up) on seed 260918, then -4,657 / -3,502 (44/96 up) on seed 260919**; 0 of 192 pairs byte-identical. Herd d20 13.6 -> 13.0: the non-match branch loses its overshoot (bumped 10/3/1 exceeds the cap, so 9/1/2 replaces the realized 10/1/2 and 10/0/4; that bucket is -10.9k mean on seed 2) while the late-yarn match branch stacks higher (17.3 vs 13.1).
+
+**Verdict: REJECTED, dormant OFF.** Same shape as v54 (+4.0k then +1.4k / median -1.6k). A buy-timing change shifts the RNG stream, so every pair diverges into shop-draw chaos that is 10x the ~$450 + 15 hand-turns the churn costs, and deterministic targets cannot reproduce a stochastic overshoot branch by branch. The BUY-COUNT family is closed after two retries; the re-buy stays.
+
 ## Queue after this read (2026-09-17)
 1. `56282756` S1 at 38 eps: 20-0-18, af 50.0%, STR crashes 5/38 = parent -> **NOT PROMOTABLE**, OFF. `56281675` feed-first at 38 eps 20-0-18, af 51.6%, live 638.5 -- stays promoted.
 2. SHEEP-ON-YARN `ENABLE_SHEEP_ON_YARN` (`agents/main_v53_sheepyarn.py`) -- gated clean, **SUBMITTED `56307690`**. Judge at >=20 eps: af >= 51.6% AND ladder >= 662.6; primary = avg SHEEP >= 4 and WOOL d25 >= 199 in yarn-store games, W-rate in (yarn & total sheep >= 6) games > 5/29.
@@ -259,3 +269,4 @@ Every one of the 14 late-yarn games ends at 15-19 animals on a 3-quad farm whose
 5. C3, M1, HERD-14, S2, BUY-COUNT-CARRIED stay OFF/dropped. H3 re-read last.
 6. (2026-09-18) `56311727` **PROMOTED** at 36 eps (21-0-15, af 50.0%, 0 err, 685.4 = all-time best; targeted bucket herds 4/8/1 as designed). HERD-CAP-RESERVE (section J) gated flat-to-negative and **REJECTED** -- the late-yarn case is closed (opponent strength, not our herd).
 7. Remaining: churn-only BUY-COUNT-CARRIED retry (count fix + explicit realized targets 6/6/1, 1-quad cap 4) as filler; H3 re-read last. 0/5 subs used 2026-09-18.
+8. (2026-09-18, 2nd) BUY-COUNT-REALIZED (section K) gated +3.2k then -4.7k own money across two seeds -> **REJECTED**; the BUY-COUNT family is closed. Remaining: H3 re-read only; otherwise the ladder waits for new episodes on `56311727` (36 eps, 685.4). 0/5 subs used.
