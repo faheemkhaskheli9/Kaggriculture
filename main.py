@@ -973,7 +973,7 @@ ENABLE_HERD_INSTALL_FIRST = True
 # OFF path is a byte no-op.
 
 
-ENABLE_CROP_FERTILIZE = False
+ENABLE_CROP_FERTILIZE = True
 # CROP_FERTILIZE (Lever H3, 2026-09-13; research/top3_replay_findings.md gap
 # #1). main.py has never issued a FERTILIZE op -- it only collects and sells
 # the herd's free fertilizer -- while the top-3 fertilize 135-198x/game and
