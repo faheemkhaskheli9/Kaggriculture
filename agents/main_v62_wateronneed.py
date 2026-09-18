@@ -1117,7 +1117,7 @@ def _fert_tick_tonight(crop, age):
     return (age + 1) in CROP_FERT_TICK_AGES.get(crop, ())
 
 
-ENABLE_WATER_ON_NEED = False
+ENABLE_WATER_ON_NEED = True
 # WATER_ON_NEED (2026-09-18; 16-ep reads of 56331074 / 56331079, scratch
 # novalue_water.py / pass_by_day.py). Engine rules for WATER: it sets
 # watered_today, and the nightly refresh then (a) resets consecutive_unwatered
