@@ -364,7 +364,7 @@ COW_ON_MILK_DAY = 9
 COW_ON_MILK_CAP = 4
 COW_ON_MILK_DRAWS = 3
 
-ENABLE_HERD_CAP_RESERVE = False
+ENABLE_HERD_CAP_RESERVE = True
 # HERD-CAP-RESERVE (2026-09-18 read of 56307690+56311727, 75 eps). The
 # animal_targets loop takes max(have, min(want, cap - tot)) species by species,
 # so a species processed later keeps its placed count on top of whatever the

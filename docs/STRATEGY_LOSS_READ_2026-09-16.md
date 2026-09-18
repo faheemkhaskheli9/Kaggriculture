@@ -233,9 +233,29 @@ case (-8.7k / -3.0k) -> yarn must be an early draw too. Final
 the 12 targeted pairs +4.3k mean / +5.2k median own money (9 up, herd 4/7/1
 vs 6/6/1), 84 pairs byte-identical. **SUBMITTED `56311727`.**
 
+## J. The late yarn draw stacks sheep on kept geese, but the 17-19 herd is not the loss (2026-09-18, 75 eps)
+
+**Read** (`56307690` + `56311727`, scratch `late_yarn_scan.py`), by the day the YARN_STORE is drawn:
+
+| bucket | n | W | own money | opp money | herd d29 | sheep d29 | WOOL d25 |
+|---|---|---|---|---|---|---|---|
+| yarn <= d9 | 27 | 16/27 | 88.9k | 85.4k | 12.6 | 6.2 | 229 |
+| yarn d10-17 | 14 | 5/14 | 81.8k | 97.2k | 17.1 | 6.0 | 234 |
+| yarn >= d18 / none | 34 | 21/34 | 83.6k | 78.0k | 12.3 | 1.0 | 104 |
+
+Every one of the 14 late-yarn games ends at 15-19 animals on a 3-quad farm whose cap is 13: `animal_targets` takes `max(have, min(want, cap - tot))` species by species, so the 4-5 geese already placed by d12 keep their slots while SHEEP-ON-YARN adds its 5 sheep, plus the usual +1-2 overshoot. Sheep cost 500 and there is no sell action.
+
+**Candidate** HERD-CAP-RESERVE `ENABLE_HERD_CAP_RESERVE` (`agents/main_v56_herdcap.py`, 9 tests, suite 162/162): each species' room is `cap - tot` minus the placed counts of the species still to come, so the total never passes the quad cap unless it already does. Early-yarn, no-yarn and COW-ON-MILK targets are unchanged (their wants sum to <= cap before any goose is placed).
+
+**Gate** `compete_v56.log` (96 pairs, seed 260918): 95-0-1, 0 err, af 47/47, I/S/R 0/96/0, margin delta -668 mean. The 17 late-yarn pairs it targets: max herd 13.8 vs 17.1, but own money **-919 mean / -942 median, 8 up / 9 down** (worst -18.6k / -12.8k / -9.4k). The 29 early-yarn pairs are 27 identical; 12 late/no-yarn pairs diverged where the cap bound a 10th cow (-22.7k .. +18.1k, -181 mean).
+
+**Verdict: REJECTED, dormant OFF.** The herd-size story was wrong: a 500-coin sheep under WOOL ~245 pays for itself even stacked on six kept geese, so the cap only forfeits wool. The late-yarn bucket's own money (81.8k) sits at the no-yarn level (83.6k); the 5/14 comes from the opponents, who already hold 4-9 sheep when the yarn store lands and cash 97k there against 78-85k elsewhere. Owning sheep *before* the draw is the general "sheep are cheap" economy question, benched. Do not retry a total-herd cap.
+
 ## Queue after this read (2026-09-17)
 1. `56282756` S1 at 38 eps: 20-0-18, af 50.0%, STR crashes 5/38 = parent -> **NOT PROMOTABLE**, OFF. `56281675` feed-first at 38 eps 20-0-18, af 51.6%, live 638.5 -- stays promoted.
 2. SHEEP-ON-YARN `ENABLE_SHEEP_ON_YARN` (`agents/main_v53_sheepyarn.py`) -- gated clean, **SUBMITTED `56307690`**. Judge at >=20 eps: af >= 51.6% AND ladder >= 662.6; primary = avg SHEEP >= 4 and WOOL d25 >= 199 in yarn-store games, W-rate in (yarn & total sheep >= 6) games > 5/29.
 3. `56307690` **PROMOTED** at 25 eps (af 54.5%, sheep 5.7 / WOOL 228 / 0 crashes in yarn-by-d9 games). BUY_ANIMAL overshoot fix (section H) gated x2 and **REJECTED** -- the overshoot is load-bearing.
 4. COW-ON-MILK (section I) built, gated x3 and **SUBMITTED `56311727`** -- judge at >=20 eps on the (yarn by d9, no milk by d9) bucket. Next after that: the yarn d10-17 case (placed geese kept -> 17-animal herd, 0/4 on the ladder, -8.7k/-12k in the gates whenever a late yarn draw adds sheep on top of geese) -- cap total herd when sheep are added late, or fill only freed slots.
 5. C3, M1, HERD-14, S2, BUY-COUNT-CARRIED stay OFF/dropped. H3 re-read last.
+6. (2026-09-18) `56311727` **PROMOTED** at 36 eps (21-0-15, af 50.0%, 0 err, 685.4 = all-time best; targeted bucket herds 4/8/1 as designed). HERD-CAP-RESERVE (section J) gated flat-to-negative and **REJECTED** -- the late-yarn case is closed (opponent strength, not our herd).
+7. Remaining: churn-only BUY-COUNT-CARRIED retry (count fix + explicit realized targets 6/6/1, 1-quad cap 4) as filler; H3 re-read last. 0/5 subs used 2026-09-18.
