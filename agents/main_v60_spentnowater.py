@@ -1026,7 +1026,7 @@ ENABLE_FERT_WATER_PRIORITY = False
 # WOOL/EGG/MILK vs animal_factory (-2.2k/game). The OFF path is a byte no-op.
 FERT_WATER_PRIORITY = 4600
 
-ENABLE_SPENT_NO_WATER = False
+ENABLE_SPENT_NO_WATER = True
 # SPENT_NO_WATER (2026-09-18; 29-ep read of the promoted CROP-FERTILIZE build
 # 56321057, scratch decay_scan.py / water_waste.py). Once an ongoing plant
 # banks its final yield tick the engine stamps `max_lifespan_step`
