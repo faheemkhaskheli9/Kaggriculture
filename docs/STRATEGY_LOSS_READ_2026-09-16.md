@@ -261,6 +261,14 @@ Every one of the 14 late-yarn games ends at 15-19 animals on a 3-quad farm whose
 
 **Verdict: REJECTED, dormant OFF.** Same shape as v54 (+4.0k then +1.4k / median -1.6k). A buy-timing change shifts the RNG stream, so every pair diverges into shop-draw chaos that is 10x the ~$450 + 15 hand-turns the churn costs, and deterministic targets cannot reproduce a stochastic overshoot branch by branch. The BUY-COUNT family is closed after two retries; the re-buy stays.
 
+## L. H3 fertilize pays once the herd stops eating the crew (2026-09-18, 96 gate pairs)
+
+**Why re-read**: H3 `56233524` was judged at parity on the 09-14 parent (40 eps, af 50%, 638.6 > the 620.2 peak of the time) and the 09-15 audit named labour coverage (42% of ongoing-crop tick-days unwatered) as the binding constraint; since then herd-install-first cut animal PICKUPs ~80 -> ~25/game, feed-first/sheep-on-yarn/cow-on-milk landed, and the queue's last item was this re-read. Same dormant hunk, one line flipped (`agents/main_v58_fertilize.py` = `main.py` + `ENABLE_CROP_FERTILIZE = True`; `tests/test_crop_fertilize.py` 6/6, suite 174/174).
+
+**Gate**: Gate `compete_v58.log` (`compete_runs/20260918-095233-436414`, seed 260920) vs `main.py`: 95-0-1, 0 err, score delta +3.1% CI [+0.0, +6.8], I/S/R 6/89/1 (all self-play mirror 6/4/1, +27.3%), af 33/33 I/S/R 0/33/0 own money +4,295 mean / +3,823 median (27/33 up), all 96 pairs +2,469 mean / +2,771 median (65/96 up, 0 identical), premium n=16 -1.1k / -258 median (8 up), FERTILIZE 58.6/game (0 before), STRAWBERRY sold 245 vs 213, WATER ops 932 vs 992, productive actions +65, escapes flat.
+
+**Read**: the +2 fertilized tick converts straight into STRAWBERRY volume (+32 units/game) with fewer WATER ops, not more -- the crew now has the slack the 09-15 audit said it lacked. The one soft bucket is premium (-1.1k mean, -258 median), inside noise. Unlike v54/v57 the effect is a mechanism (58.6 FERTILIZE ops/game from 0), so a single seed is trusted. **SUBMITTED `56321057`** (1/5 today); judge at >=20 eps against `56311727` (af 50.0%, 685.4).
+
 ## Queue after this read (2026-09-17)
 1. `56282756` S1 at 38 eps: 20-0-18, af 50.0%, STR crashes 5/38 = parent -> **NOT PROMOTABLE**, OFF. `56281675` feed-first at 38 eps 20-0-18, af 51.6%, live 638.5 -- stays promoted.
 2. SHEEP-ON-YARN `ENABLE_SHEEP_ON_YARN` (`agents/main_v53_sheepyarn.py`) -- gated clean, **SUBMITTED `56307690`**. Judge at >=20 eps: af >= 51.6% AND ladder >= 662.6; primary = avg SHEEP >= 4 and WOOL d25 >= 199 in yarn-store games, W-rate in (yarn & total sheep >= 6) games > 5/29.
@@ -270,3 +278,4 @@ Every one of the 14 late-yarn games ends at 15-19 animals on a 3-quad farm whose
 6. (2026-09-18) `56311727` **PROMOTED** at 36 eps (21-0-15, af 50.0%, 0 err, 685.4 = all-time best; targeted bucket herds 4/8/1 as designed). HERD-CAP-RESERVE (section J) gated flat-to-negative and **REJECTED** -- the late-yarn case is closed (opponent strength, not our herd).
 7. Remaining: churn-only BUY-COUNT-CARRIED retry (count fix + explicit realized targets 6/6/1, 1-quad cap 4) as filler; H3 re-read last. 0/5 subs used 2026-09-18.
 8. (2026-09-18, 2nd) BUY-COUNT-REALIZED (section K) gated +3.2k then -4.7k own money across two seeds -> **REJECTED**; the BUY-COUNT family is closed. Remaining: H3 re-read only; otherwise the ladder waits for new episodes on `56311727` (36 eps, 685.4). 0/5 subs used.
+9. (2026-09-18, 3rd) H3 re-read (section L): `ENABLE_CROP_FERTILIZE` on the current parent gated +2.5k mean / +2.8k median own money (65/96 up, af 27/33 up, FERTILIZE 58.6/game) -> **SUBMITTED `56321057`**. Tracked pair `56321057` + `56311727`. Queue is now empty: judge `56321057` at >=20 eps, otherwise wait. 1/5 subs used.
