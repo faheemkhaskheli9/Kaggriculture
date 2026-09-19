@@ -1111,7 +1111,7 @@ ENABLE_LATE_CREW = False
 # lever as MAXHANDS-12 (605.1) and the day-25 -> day-27 crew extension
 # already in the incumbent.
 
-ENABLE_HERD_BEFORE_LAND = False
+ENABLE_HERD_BEFORE_LAND = True
 # HERD_BEFORE_LAND (2026-09-18; docs/STRATEGY_LOSS_READ_2026-09-18.md §C +
 # scratch herdtrace.py, 178 games since 09-17). Opponents finishing >= 100k
 # hold 4.5 / 5.3 / 6.8 / 7.7 / 9.4 animals at d4 / d6 / d7 / d8 / d9 on ONE
