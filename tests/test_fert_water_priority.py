@@ -46,12 +46,17 @@ def water_priority(obs, pos):
 
 class FertWaterPriorityTests(unittest.TestCase):
     def setUp(self):
-        self._flags = (main.ENABLE_FERT_WATER_PRIORITY, main.ENABLE_CROP_FERTILIZE)
+        self._flags = (main.ENABLE_FERT_WATER_PRIORITY, main.ENABLE_CROP_FERTILIZE,
+                        main.ENABLE_WATER_ON_NEED)
         main.ENABLE_FERT_WATER_PRIORITY = True
         main.ENABLE_CROP_FERTILIZE = True
+        # These tests assert the pre-WATER_ON_NEED comfort-water fallback
+        # (2600) independent of whatever main.py's WATER_ON_NEED default is.
+        main.ENABLE_WATER_ON_NEED = False
 
     def tearDown(self):
-        main.ENABLE_FERT_WATER_PRIORITY, main.ENABLE_CROP_FERTILIZE = self._flags
+        (main.ENABLE_FERT_WATER_PRIORITY, main.ENABLE_CROP_FERTILIZE,
+         main.ENABLE_WATER_ON_NEED) = self._flags
 
     def test_tick_tonight_matches_engine_refresh(self):
         # An ongoing plant gains a unit at tonight's refresh exactly on the
