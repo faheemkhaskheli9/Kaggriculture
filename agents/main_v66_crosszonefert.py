@@ -527,7 +527,7 @@ ENABLE_CROSS_ZONE_DIG = True
 # win-rate lever. Kept promoted (gate-clean, zero regression, closes a real
 # code gap) but treat as attritional correctness work, not a proven edge.
 
-ENABLE_CROSS_ZONE_FERTILIZE = False
+ENABLE_CROSS_ZONE_FERTILIZE = True
 # CROSS-ZONE-FERTILIZE (2026-09-19, parity sweep after CROSS-ZONE-DIG). The
 # same structural gap CROSS-ZONE-DIG fixed for DIG also applies to crop
 # FERTILIZE: `CROP_FERT_PRIORITY = 2650` (< comfort water 2600's neighbour,
