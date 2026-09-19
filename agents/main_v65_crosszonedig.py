@@ -500,7 +500,7 @@ ENABLE_CROSS_ZONE_WATER = False
 # exemption). Cannot reduce watering throughput, only add cross-zone coverage;
 # OFF is an exact byte no-op.
 
-ENABLE_CROSS_ZONE_DIG = False
+ENABLE_CROSS_ZONE_DIG = True
 # CROSS-ZONE-DIG (2026-09-19 top-10 teardown + `56321057` loss read). DIG is
 # the ONE action with no cross-zone escape hatch at all: `assign()` marks
 # every out-of-zone DIG `_IMPOSSIBLE` unconditionally, several lines before
