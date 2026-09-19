@@ -1300,7 +1300,7 @@ ENABLE_CROP_CROWD_OWN_ONLY = False
 # stays). Day < 7 bootstrap and the OFF path are byte no-ops.
 
 
-ENABLE_STR_CAP = False
+ENABLE_STR_CAP = True
 # STR-CAP (item 4, docs/STRATEGY_LOSS_READ_2026-09-18.md SSD/SSE, 2026-09-19).
 # 356-game current-lineage read: we plant 46-51 STRAWBERRY tiles every game
 # regardless of board state, and win-rate tracks the realized STRAWBERRY
