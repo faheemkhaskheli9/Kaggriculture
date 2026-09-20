@@ -545,6 +545,64 @@ ENABLE_CROSS_ZONE_FERTILIZE = True
 # gate). Cannot reduce fertilizing throughput, only add cross-zone coverage;
 # OFF is an exact byte no-op.
 
+ENABLE_ZONE_GATE_RELAX = True
+# ZONE-GATE-RELAX (/ladder-auto 2026-09-20 mining pass). CROSS-ZONE-DIG's own
+# judged readback barely moved weeds29 (~24 -> ~21-22 at 20-29 eps, top-10
+# median 0) because `make_zones` carves ONE ZONE PER FIELD HAND (a contiguous
+# per-hand slice, not per-quadrant -- see the `make_zones(cells, n_units -
+# n_crew)` call sites). With ~22 residual weeds spread over ~10-12 per-hand
+# zones, nearly every hand's own zone already holds >=1 weed, so
+# `has_zone_weed` is true for almost every row and the cross-zone exception
+# (gated on `not has_zone_weed`) almost never actually opens -- it only ever
+# helps the rare hand whose own slice happens to be fully clean. Same shape
+# applies to the dormant CROSS-ZONE-WATER/FERTILIZE gates (`has_zone_water`,
+# `has_zone_fert`), which use the identical per-zone-emptiness pattern. ON:
+# treat `has_zone_water`/`has_zone_weed`/`has_zone_fert` as always satisfied
+# (drop the per-zone gate) so the cross-zone exception is open whenever the
+# corresponding ENABLE_CROSS_ZONE_* flag is ON, and let the existing
+# priority/distance/zone-bonus weighting in the Hungarian matcher arbitrate --
+# exactly like every other task type already does. In-zone tasks keep their
+# +150 zone bonus and the cheaper 25-vs-40 step cost, so a hand's own weed/
+# water/fert task still normally outweighs a farther one; this only unblocks
+# the case where a hand's own zone has *some* residual work but a closer or
+# more urgent cross-zone task of the same type exists. Layered on top of
+# whichever ENABLE_CROSS_ZONE_{WATER,DIG,FERTILIZE} flags are already ON.
+# OFF is an exact byte no-op (has_zone_* computed exactly as before).
+# Gate (compete_v69.log, bundled with CROSS-ZONE-WATER): 120 pairs 112W-0T-8L
+# /93.3%, 0 err/crashes, +2.5% CI[-2.5,+7.5] vs main.py, every real archetype
+# +0.0% (locally-inert ladder-only mechanism, same class as CROSS-ZONE-DIG/
+# FERTILIZE before their ladder reads). OFF-path 40g: 0 diff. Submitted
+# standalone 2026-09-20 -- judge at >=20 eps: af win-rate >= floor, weeds29 /
+# unwatered-tick / unfertilized-tick residuals down vs the DIG+FERTILIZE-only
+# baseline, 0 err.
+
+ENABLE_HARVEST_CROSS_ZONE = False
+# HARVEST-CROSS-ZONE-GENERAL (/ladder-auto 2026-09-20 mining pass). HARVEST's
+# only cross-zone exception today is `ENABLE_ENDGAME_SWEEP`, gated to
+# `day >= ENDGAME_SWEEP_DAY` (28) -- 2 days out of 29. Every other day, a
+# ripe/decaying crop outside a hand's own zone is unreachable even when that
+# zone's hand is idle and a neighbouring hand is free, the same structural
+# gap class CROSS-ZONE-DIG/FERTILIZE closed for DIG/FERTILIZE, but for
+# HARVEST it is day-restricted rather than absent outright. Targets the
+# residual flagged in the SPENT-NO-WATER teardown (2026-09-18): 11.6-17.6
+# STR units/game held by spent plants that decay unharvested (LATE-CREW's own
+# attempt at this residual via crew headcount was RETIRED, so this attacks it
+# via routing instead, not a re-hash of the benched labour/water-tier
+# family). ON: a hand may cross zones for a HARVEST task specifically when
+# its OWN zone has no pending HARVEST task left (mirrors
+# has_zone_weed/has_zone_water/has_zone_fert), on every day, not just
+# day >= ENDGAME_SWEEP_DAY. Independent of and stacks with
+# ENABLE_ENDGAME_SWEEP and ENABLE_ZONE_GATE_RELAX (has_zone_harvest is not
+# gated by ZONE_GATE_RELAX; add that if HARVEST needs the same always-open
+# treatment after a ladder read). Cannot reduce harvest throughput, only add
+# cross-zone coverage; OFF is an exact byte no-op.
+# Gate (compete_v68.log): 120 pairs 108W-1T-11L/90.4%, 0 err/crashes, +1.2%
+# CI[-4.6,+6.7] vs main.py, every real archetype +0.0% (locally-inert
+# ladder-only mechanism, same class as CROSS-ZONE-DIG/FERTILIZE before their
+# ladder reads). OFF-path 40g: 0 diff. Submitted standalone 2026-09-20 --
+# judge at >=20 eps: af win-rate >= floor, STR-decay-after-lifespan residual
+# down vs the DIG+FERTILIZE(+ZONE-GATE-RELAX)-only baseline, 0 err.
+
 # LAND-EXPANSION-RESTRAINT (/ladder-auto iter 30, replay 107185595 trace). The
 # af losses do NOT flip at the d10-15 "crater" -- we are ahead there. They flip
 # d15->d17: we hold 55-62 mostly-wheat tiles a ~13-hand crew cannot service
@@ -3405,15 +3463,22 @@ def assign(obs, me, private, tasks, zones, forced=None):
             has_zone_task = any(target in zone for _, target, _ in candidates)
             has_zone_water = (
                 ENABLE_CROSS_ZONE_WATER
+                and not ENABLE_ZONE_GATE_RELAX
                 and any(target in zone and act == ["WATER"] for _, target, act in candidates)
             )
             has_zone_weed = (
                 ENABLE_CROSS_ZONE_DIG
+                and not ENABLE_ZONE_GATE_RELAX
                 and any(target in zone and act == ["DIG"] for _, target, act in candidates)
             )
             has_zone_fert = (
                 ENABLE_CROSS_ZONE_FERTILIZE
+                and not ENABLE_ZONE_GATE_RELAX
                 and any(target in zone and act == ["FERTILIZE"] for _, target, act in candidates)
+            )
+            has_zone_harvest = (
+                ENABLE_HARVEST_CROSS_ZONE
+                and any(target in zone and act == ["HARVEST"] for _, target, act in candidates)
             )
             row_weights = []
             for col, (priority, target, action) in enumerate(candidates):
@@ -3439,6 +3504,8 @@ def assign(obs, me, private, tasks, zones, forced=None):
                             and not has_zone_weed)
                         or (ENABLE_CROSS_ZONE_FERTILIZE and action == ["FERTILIZE"]
                             and not has_zone_fert)
+                        or (ENABLE_HARVEST_CROSS_ZONE and action == ["HARVEST"]
+                            and not has_zone_harvest)
                     ):
                         row_weights.append(_IMPOSSIBLE)
                         continue
