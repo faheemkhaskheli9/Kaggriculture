@@ -545,7 +545,7 @@ ENABLE_CROSS_ZONE_FERTILIZE = True
 # gate). Cannot reduce fertilizing throughput, only add cross-zone coverage;
 # OFF is an exact byte no-op.
 
-ENABLE_ZONE_GATE_RELAX = True
+ENABLE_ZONE_GATE_RELAX = False
 # ZONE-GATE-RELAX (/ladder-auto 2026-09-20 mining pass). CROSS-ZONE-DIG's own
 # judged readback barely moved weeds29 (~24 -> ~21-22 at 20-29 eps, top-10
 # median 0) because `make_zones` carves ONE ZONE PER FIELD HAND (a contiguous
@@ -576,7 +576,7 @@ ENABLE_ZONE_GATE_RELAX = True
 # unwatered-tick / unfertilized-tick residuals down vs the DIG+FERTILIZE-only
 # baseline, 0 err.
 
-ENABLE_HARVEST_CROSS_ZONE = False
+ENABLE_HARVEST_CROSS_ZONE = True
 # HARVEST-CROSS-ZONE-GENERAL (/ladder-auto 2026-09-20 mining pass). HARVEST's
 # only cross-zone exception today is `ENABLE_ENDGAME_SWEEP`, gated to
 # `day >= ENDGAME_SWEEP_DAY` (28) -- 2 days out of 29. Every other day, a
