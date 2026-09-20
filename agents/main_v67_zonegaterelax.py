@@ -545,6 +545,30 @@ ENABLE_CROSS_ZONE_FERTILIZE = True
 # gate). Cannot reduce fertilizing throughput, only add cross-zone coverage;
 # OFF is an exact byte no-op.
 
+ENABLE_ZONE_GATE_RELAX = True
+# ZONE-GATE-RELAX (/ladder-auto 2026-09-20 mining pass). CROSS-ZONE-DIG's own
+# judged readback barely moved weeds29 (~24 -> ~21-22 at 20-29 eps, top-10
+# median 0) because `make_zones` carves ONE ZONE PER FIELD HAND (a contiguous
+# per-hand slice, not per-quadrant -- see the `make_zones(cells, n_units -
+# n_crew)` call sites). With ~22 residual weeds spread over ~10-12 per-hand
+# zones, nearly every hand's own zone already holds >=1 weed, so
+# `has_zone_weed` is true for almost every row and the cross-zone exception
+# (gated on `not has_zone_weed`) almost never actually opens -- it only ever
+# helps the rare hand whose own slice happens to be fully clean. Same shape
+# applies to the dormant CROSS-ZONE-WATER/FERTILIZE gates (`has_zone_water`,
+# `has_zone_fert`), which use the identical per-zone-emptiness pattern. ON:
+# treat `has_zone_water`/`has_zone_weed`/`has_zone_fert` as always satisfied
+# (drop the per-zone gate) so the cross-zone exception is open whenever the
+# corresponding ENABLE_CROSS_ZONE_* flag is ON, and let the existing
+# priority/distance/zone-bonus weighting in the Hungarian matcher arbitrate --
+# exactly like every other task type already does. In-zone tasks keep their
+# +150 zone bonus and the cheaper 25-vs-40 step cost, so a hand's own weed/
+# water/fert task still normally outweighs a farther one; this only unblocks
+# the case where a hand's own zone has *some* residual work but a closer or
+# more urgent cross-zone task of the same type exists. Layered on top of
+# whichever ENABLE_CROSS_ZONE_{WATER,DIG,FERTILIZE} flags are already ON.
+# OFF is an exact byte no-op (has_zone_* computed exactly as before).
+
 # LAND-EXPANSION-RESTRAINT (/ladder-auto iter 30, replay 107185595 trace). The
 # af losses do NOT flip at the d10-15 "crater" -- we are ahead there. They flip
 # d15->d17: we hold 55-62 mostly-wheat tiles a ~13-hand crew cannot service
@@ -3405,14 +3429,17 @@ def assign(obs, me, private, tasks, zones, forced=None):
             has_zone_task = any(target in zone for _, target, _ in candidates)
             has_zone_water = (
                 ENABLE_CROSS_ZONE_WATER
+                and not ENABLE_ZONE_GATE_RELAX
                 and any(target in zone and act == ["WATER"] for _, target, act in candidates)
             )
             has_zone_weed = (
                 ENABLE_CROSS_ZONE_DIG
+                and not ENABLE_ZONE_GATE_RELAX
                 and any(target in zone and act == ["DIG"] for _, target, act in candidates)
             )
             has_zone_fert = (
                 ENABLE_CROSS_ZONE_FERTILIZE
+                and not ENABLE_ZONE_GATE_RELAX
                 and any(target in zone and act == ["FERTILIZE"] for _, target, act in candidates)
             )
             row_weights = []
