@@ -576,7 +576,7 @@ ENABLE_ZONE_GATE_RELAX = False
 # unwatered-tick / unfertilized-tick residuals down vs the DIG+FERTILIZE-only
 # baseline, 0 err.
 
-ENABLE_HARVEST_CROSS_ZONE = True
+ENABLE_HARVEST_CROSS_ZONE = False
 # HARVEST-CROSS-ZONE-GENERAL (/ladder-auto 2026-09-20 mining pass). HARVEST's
 # only cross-zone exception today is `ENABLE_ENDGAME_SWEEP`, gated to
 # `day >= ENDGAME_SWEEP_DAY` (28) -- 2 days out of 29. Every other day, a
