@@ -624,3 +624,32 @@ forward queue + why each item is/ isn't above the submit bar.
   judge at ≥20 eps on af win-rate vs 50%/41% baselines; meanwhile mine a
   fresh idea (market-timing A6/A8, or a new bug/mechanical candidate) so a
   2nd candidate is ready behind this one.
+
+## 2026-09-20 — cross-zone family, batch-of-2 submitted (note: detailed candidate tracking moved to LEDGER.md/LADDER_RUNBOOK.md as of v65+; this file's table above is stale since 2026-09-12)
+
+Family `bug` (cross-zone routing fixes in `assign()`'s Hungarian matcher) is
+the active lineage: CROSS-ZONE-DIG (v65, promoted board-best) and
+CROSS-ZONE-FERTILIZE (v66, promoted 2026-09-20, af 54.8% vs 50% floor) both
+shipped clean/positive. Mining pass found the `has_zone_*` per-zone-emptiness
+gate almost never opens (`make_zones` = one zone per field hand, so a hand's
+own zone almost always has *some* pending task) — ZONE-GATE-RELAX (v67) fixes
+that structurally for all three cross-zone flags at once.
+
+**Submitted today (batch of 2, 2/4 experiment slots used):**
+- v67 ZONE-GATE-RELAX `56389085` — drops the has_zone_* gate. Gate +2.5% CI
+  crossing 0 (bundled read), locally inert like every prior cross-zone fix.
+- v68 HARVEST-CROSS-ZONE-GENERAL `56389176` — extends HARVEST's cross-zone
+  exception (today ENDGAME_SWEEP-only, day>=28) to every day. Gate +1.2% CI
+  crossing 0. Independent flag, doesn't touch ZONE_GATE_RELAX.
+
+**Queued next (2 experiment slots remain today, ~12h batch spacing):**
+- v69 WATER-GATE-RELAX UNION `ENABLE_CROSS_ZONE_WATER`+`ENABLE_ZONE_GATE_RELAX`
+  (`agents/main_v69_watergaterelax.py`) — best local point-estimate (+2.5% CI
+  [-2.5,+7.5]) of the three, held back this batch to avoid confounding with
+  v67's standalone ZONE_GATE_RELAX read. Propose once v67/v68 show early
+  direction (or next 12h slot if budget allows).
+
+family = bug, 2 promotes + 0 non-beats so far (CROSS-ZONE-DIG's own win-rate
+gain regressed to noise by 29 eps but stayed promoted as a zero-downside
+correctness fix — not counted as a non-beat). Not benched; keep drawing from
+this family while v67/v68/v69 reads come in.
