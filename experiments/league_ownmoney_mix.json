@@ -1,0 +1,12 @@
+{"name": "own-money-mix-2026-09-20",
+ "purpose": "Own-money paired A/B: 45% strong same-lineage farms (ladder-like market competition), 45% animal-factory style bots, 10% crop bots",
+ "opponents": [
+  {"path": "main.py", "weight": 25},
+  {"path": "agents/main_v45_c2c1.py", "weight": 10},
+  {"path": "agents/main_v58_fertilize.py", "weight": 10},
+  {"path": "bots/bot_animalfactory_v2.py", "weight": 25},
+  {"path": "bots/bot_factory_v3.py", "weight": 10},
+  {"path": "bots/bot_top10clone.py", "weight": 10},
+  {"path": "bots/bot_premium.py", "weight": 5},
+  {"path": "bots/bot_wheatflood.py", "weight": 5}
+ ]}

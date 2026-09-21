@@ -1,0 +1,11 @@
+v86 FEED_WHEAT family -- fixed before any run (2026-09-20 23:40 UTC)
+baseline      : agents/main_v78_herdd6.py
+search seed   : 882001, 60 pairs, experiments/league_ownmoney_mix.json  (every arm run on it gets a line below)
+held-out seed : 993101, 100 pairs, experiments/adversarial_league_v1.json -- ONE arm, ONE run, chosen before looking
+metric        : paired own final money (mean + CI95)
+arms tried on 882001:
+[mechanism probe, NOT an arm, seed 626990618 vs af, 1 game] v86 quota 13: wheat tiles d10/12/14/16/18/20 = 9/12/17/14/7/4; PROD WHEAT bought 601 (v73 probe 604); WHEAT sold 589 (465). Home-grown wheat is sold at the h0 sell-down (floor 2n+4) and feed is still bought -> hunk does not deliver self-sufficiency. Search seed 882001 NOT spent. Fix floor, re-probe counters first.
+[mechanism re-probe, NOT an arm, same seed] v86 + sell floor 3 days: bought 536 / sold 491 (NET +45), shed discards WHEAT 30 + MILK 34 (new). CORRECTION of the note above: gross buys are churn; NET wheat bought was v73 +139 -> v86 plain quota +12 -> v86+floor +45. The plain quota already fires; the floor change is worse on every counter -> DROPPED (FEED_WHEAT_STOCK_DAYS hunk removed). Open defect, not fixed: standing wheat decays 17 -> 3 by d22 (replant PLANT tier 2400 starves under saturated labour).
+arm 1 on 882001: agents/main_v86_feedwheat.py = v78 + FEED_WHEAT quota 13, d10-24, no floor change.
+RESULT arm 1 (882001, 60 pairs, vs v78): mean -8, median +814, CI95[-2123,+2078], 32/60 up, sd 8575, 0 bad / 0 tracebacks. FLAT. Arms tried on 882001: 1. Held-out seed 993101: NOT spent (nothing to confirm).
+Post-hoc only (8 undeclared subgroups, do not cite as a finding): vs main.py +8.0k (n14), vs af_v2 -3.3k (n14), vs top10clone -7.6k (n8), vs v58 +1.6k (n10). Same sign pattern as kaggriculture-56's unconditional STR_TRIM (+3.5k/+5.3k same-lineage, -8.2k af). To test it: declare the opponent split first, fresh pick-seed.

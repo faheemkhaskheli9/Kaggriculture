@@ -1,0 +1,12 @@
+{"name": "contested-mix-2026-09-21",
+ "purpose": "Own-money paired A/B with the ladder split of 56403323: about half the games against same-lineage farms that flood STRAWBERRY/MILK into the shared pool (mirror v78 included), half against bots that do not",
+ "opponents": [
+  {"path": "agents/main_v78_herdd6.py", "weight": 25},
+  {"path": "main.py", "weight": 15},
+  {"path": "agents/main_v58_fertilize.py", "weight": 10},
+  {"path": "bots/bot_animalfactory_v2.py", "weight": 25},
+  {"path": "bots/bot_factory_v3.py", "weight": 10},
+  {"path": "bots/bot_top10clone.py", "weight": 10},
+  {"path": "bots/bot_premium.py", "weight": 3},
+  {"path": "bots/bot_wheatflood.py", "weight": 2}
+ ]}
