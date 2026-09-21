@@ -1,0 +1,58 @@
+v99 TOP-TEMPLATE family -- fixed before any run (2026-09-21)
+evidence      : shared-pool + top-ladder template read (kaggriculture-shared-pool-template):
+                top farms hold ~17 animals (cow+sheep, ~0 goose) by day 14, ~31 STRAWBERRY
+                tiles (not 49+), 11-17 wheat tiles of their own feed. Each gap was already
+                tried alone and failed: B56 HERD_BIG (own money -2.5k), B57 FEED_WHEAT (flat),
+                B59 STR_TRIM (+0.6k on search, not confirmed on held-out). This build tests
+                whether the four gaps are complementary rather than independently-losing --
+                specifically whether HERD_STEP_D14 (new, funds the raised cap) fixes B56's
+                failure mode.
+baseline      : agents/main_v78_herdd6.py
+candidate     : agents/main_v99_toptemplate.py (ENABLE_STR_TRIM, ENABLE_FEED_WHEAT,
+                ENABLE_HERD_BIG, ENABLE_HERD_STEP_D14, all True; each independently OFF
+                is a byte no-op vs v78 -- see tests/test_v99_toptemplate.py)
+search seed   : 210921, 60 pairs, experiments/league_contested_mix.json
+held-out seed : 921099, 100 pairs, experiments/league_contested_mix.json -- ONE arm
+                (v99), ONE run, chosen before looking
+metric        : paired own final money (mean + CI95)
+arms on 210921 (search set, up to 4 declared one-flag-OFF ablations + the full stack):
+ arm 1  agents/main_v99_toptemplate.py                          : full stack (all 4 ON)
+ arm 2  agents/main_v99_toptemplate.py + ENABLE_STR_TRIM=False    (ablation, in-process flag flip)
+ arm 3  agents/main_v99_toptemplate.py + ENABLE_FEED_WHEAT=False  (ablation, in-process flag flip)
+ arm 4  agents/main_v99_toptemplate.py + ENABLE_HERD_BIG=False    (ablation, in-process flag flip)
+ arm 5  agents/main_v99_toptemplate.py + ENABLE_HERD_STEP_D14=False (ablation, in-process flag flip)
+Command form (search): python experiments/paired_lownoise.py <out.csv> 60 210921 <workers> \
+  experiments/league_contested_mix.json main.py agents/main_v78_herdd6.py agents/main_v99_toptemplate.py
+Ablation arms (2-5) run the same candidate file with the named flag toggled False before
+env creation (paired_lownoise.py loads by path/exec, so this needs a thin per-ablation
+driver or four extra byte-identical copies -- pick whichever the runner supports without
+touching agents/main_v99_toptemplate.py itself); verify the real ablation mechanism in
+paired_lownoise.py before running, per the task instruction to check the CLI against the
+actual script.
+Report format: python experiments/paired_lownoise.py --report <out.csv> agents/main_v78_herdd6.py
+
+held-out command: python experiments/paired_lownoise.py <out.csv> 100 921099 <workers> \
+  experiments/league_contested_mix.json agents/main_v78_herdd6.py agents/main_v99_toptemplate.py
+then: python experiments/paired_lownoise.py --report <out.csv> agents/main_v78_herdd6.py
+
+PASS BAR (pre-registered, all three required):
+ (a) held-out own money vs main.py >= +8k, CI95 excludes 0
+ (b) animal_factory subgroup (bot_animalfactory_v2 opponent rows) not below v78's own
+     subgroup mean on the same held-out run
+ (c) v99 vs v78 CI95 on held-out excludes 0
+KILL CRITERION: mechanism counter "herd d14" < 15 (see below) => the HERD_BIG/HERD_STEP_D14
+stack did not fire as designed -- do not submit regardless of the money read.
+
+MECHANISM COUNTERS (T6, collect on a sample of held-out games before reading money):
+ - herd size at day 2 / day 8 / day 14 (targets: ~4 / >=6 / >=16)
+ - COW / SHEEP / GOOSE count at day 14 (goose should be ~0)
+ - STRAWBERRY tiles at day 14 (target <=31)
+ - wheat tiles at day 12 / day 16 / day 22
+ - net wheat bought over the game (target <=0, i.e. feed self-sufficiency)
+ - WOOL / MILK / EGG / FERTILIZER units sold
+ - shed discards (item, count) at day-end drops
+ - own cash at day 10 / day 15 / day 20
+ - MOVE action share of all unit-actions
+
+Never Read raw replay/log JSON for this -- use tools/probe_game.py or a grep on the
+compact CSV/summary output only.
