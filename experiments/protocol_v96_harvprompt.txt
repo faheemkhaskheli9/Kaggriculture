@@ -1,0 +1,14 @@
+v96 HARVEST_PROMPT family -- fixed before any run (2026-09-21)
+evidence      : ladder 56403323 (31 eps): STR units held on plants at h12 d21-24 = 56-80 (opp 10-33); in losses STR price d23-27 = 192/162/89/39/26 and 150 of our units sell d26-29 at 53 (wins 169)
+baseline      : agents/main_v78_herdd6.py
+search seed   : 310921, 60 pairs, experiments/league_contested_mix.json (every arm run on it gets a line below)
+held-out seed : 774409, 100 pairs, same league -- ONE arm, ONE run, chosen before looking
+metric        : paired own final money (mean + CI95). Submit bar: held-out CI95 excludes 0 AND no declared subgroup below -2k
+declared split: CONTESTED = opponents v78 / main.py / v58 (same-lineage); UNCONTESTED = the five bots. Expectation written before the run: gain sits in CONTESTED, UNCONTESTED about 0
+arms (3, all on 310921):
+ arm 1 agents/main_v96_harvprompt.py      : HARVEST 4700 for an ongoing plant holding >= 2 units, all days
+ arm 2 agents/main_v97_harvprompt_d18.py  : >= 1 unit from day 18
+ arm 3 agents/main_v98_harvprompt_opp.py  : arm 2 only while the opponent holds >= 15 STRAWBERRY tiles
+RESULT (310921, 60 pairs, vs v78, 0 bad / 0 tracebacks): arm 1 mean -349 median -401 CI95[-1078,+387] 26/60 up; arm 2 mean -260 median -468 CI95[-907,+409] 29/60 up; arm 3 mean -261 median 0 CI95[-737,+209] 21/60 up.
+Declared split: CONTESTED (n=32) arm1 v78 -922 / main -369 / v58 -119; arm2 -781 / -693 / +81; arm3 -685 / -693 / +81. UNCONTESTED: af_v2 -0.3k/-0.3k/0, top10clone +1.5k/+1.2k/+1.2k, factory_v3 -2.5k/-1.5k/-1.4k. Expectation (gain in CONTESTED) NOT met.
+VERDICT: REJECTED locally, all three arms. Arms tried on 310921: 3. Held-out seed 774409: NOT spent (nothing to confirm).
