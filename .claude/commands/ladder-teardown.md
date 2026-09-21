@@ -71,6 +71,11 @@ routing + MAXHANDS-12 (→605.1). With ~5–7 clean main-slot reads left before
 6. Recommend the single top row as the next queued change, or explicitly
    recommend holding the slot if nothing clears the bar.
 
+7. Check every gap against `experiments/AGENT_MISTAKES.md` first: skip gaps
+   whose section-A row is `CLOSED`/`WONTFIX`, and cite the prior section-B
+   attempts for any `OPEN` row. Give the pre-filled section-A row (evidence +
+   est. cost/game) for each new gap so `/ladder` can add it.
+
 End with: the ranked table, the one recommended pick (or "hold"), and the exact
 `/ladder` invocation to build it. Do **not** edit `main.py`, `LEDGER.md`, or the
 State table — `/ladder` owns those.

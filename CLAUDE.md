@@ -24,6 +24,11 @@ margin is discarded. Deadline **2026-09-30**.
 3. `docs/LADDER_RUNBOOK.md` — the execution loop (teardown → one flagged change
    → local-gate → queue → judge), run via `/ladder`. Its State table is the
    live slot status.
+4. `experiments/AGENT_MISTAKES.md` — compact register: (A) what the agent does
+   wrong in games, (B) every strategy tested + why it failed, (C) how our tests
+   misled us. Read it before proposing a change (don't re-test a closed row);
+   update the A/B row in the same sitting as any teardown, gate, submit or
+   readback.
 
 Codex may share this working tree — follow the handoff protocol in
 `docs/PLAN_TO_3000.md`; don't touch another active row's owned files.
@@ -117,7 +122,9 @@ Running out of plan tokens is mostly structural here. Follow these:
 - **No MCP servers are needed here** — keep them disabled in
   `.claude/settings.json`.
 - **Log spend** to `experiments/TOKENS.md` (`tools/token_report.py`) each
-  session so the expensive activity is visible.
+  session so the expensive activity is visible. Run it with **no** `--since`
+  (it rewrites the whole file from the filtered rows and drops history); use
+  `--since` only together with `--no-write`.
 
 ## File map (essentials)
 

@@ -118,6 +118,9 @@ End with, in this order:
    pair, next eviction.
 6. **Single next action** — normally `/ladder-teardown` (or `/ladder` if a
    candidate is already queued in State).
+7. **Pre-filled `experiments/AGENT_MISTAKES.md` edits** — the section-B row for
+   `$PENDING` (ladder now, verdict, section-C code if the read was inside the
+   noise band) and the new status of the section-A mistake it targeted.
 
 Do **not** run `kaggle competitions submit`. Do **not** edit `main.py`,
 `LEDGER.md`, or the State table without re-reading them first in the same
