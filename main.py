@@ -381,6 +381,94 @@ COW_ON_MILK_DAY = 9
 COW_ON_MILK_CAP = 4
 COW_ON_MILK_DRAWS = 3
 
+ENABLE_GOOSE_ON_NO_MILK = False
+# GOOSE_ON_NO_MILK (2026-09-20; 497-game teardown of subs >= 56259132). The F1
+# herd-match (opponent >= 4 animals from day 7, 72% of ladder opponents) swaps
+# the cow herd for COW5/GOOSE5/SHEEP1 on the premise that MILK floors when both
+# farms sell it. Realized ladder prices say otherwise: MILK 191-197 for both
+# sides in the games we lose, and by milk shops open on day 12: 0 -> 40,
+# 1 -> 94, 2 -> 191, 3+ -> 245. A goose earns 73/animal-day against 202 for a
+# cow (we hold 74 goose-days/game; opponents >= 100k hold <= 0.6 geese). ON: the
+# goose-weighted match mix applies only while no unlocked shop buys MILK;
+# with a milk shop open the herd keeps the cow-weighted default targets.
+# OFF is behaviour-identical to the incumbent.
+
+ENABLE_SHEEP_OPENING = False
+# SHEEP_OPENING (2026-09-20; 497-game teardown of subs >= 56259132 + 81 top-10
+# replays). Day 0 buys 4 COW into a 1-quadrant herd cap of 3: the 4th cow sits
+# in the shed until quadrant 2 (day 6), and the first animal income is the day-8
+# milk. Opponents finishing >= 100k open 2 COW + 2 SHEEP (84% buy a sheep on
+# day 0; 100% of the top-10 sample) and place all four: a sheep cared from day 0
+# banks the 6-unit WOOL cap on day 6 (~2.4k for two), two days before the first
+# milk, which is what pays for their day 6-8 land + herd step while we sit at
+# 130-630 coins. ON, while only the home quadrant is unlocked: the herd target
+# is SHEEP 2 + COW 2 (sheep bought first), the 1-quadrant cap is 4, and an
+# animal in a hand's inventory counts as owned so the re-buy overshoot cannot
+# spend the MELON opening's cash. Once quadrant 2 unlocks the incumbent targets
+# apply unchanged (placed animals are always kept). OFF is behaviour-identical.
+SHEEP_OPENING_ONE_QUAD_CAP = 4
+SHEEP_OPENING_WANT = {"SHEEP": 2, "COW": 2, "GOOSE": 0}
+
+ENABLE_HERD_STEP_D6 = False
+# HERD_STEP_D6 (2026-09-20, same teardown). We buy no animal on days 1-8 (herd
+# 4.0 at day 8 vs 9.0 / 12.5) because the E3 gate wants reserve (1.1-1.4k) +
+# cost + 150 x placed. Relaxing it on days 2-5 (HERD_BEFORE_LAND) starved the
+# quadrant-2 buy and the day-9 STRAWBERRY wave and lost ~2.0k/game. ON: only
+# AFTER quadrant 2 is unlocked, days FIRST..LAST, and while the herd is under
+# TARGET, the animal buy uses the small RESERVE / RUNCOST terms -- the day-6
+# wool (SHEEP_OPENING) then turns into animals instead of idling to day 10.
+# OFF is behaviour-identical to the incumbent.
+HERD_STEP_D6_FIRST_DAY = 6
+HERD_STEP_D6_LAST_DAY = 9
+HERD_STEP_D6_TARGET = 8
+HERD_STEP_D6_RESERVE = 300
+HERD_STEP_D6_RUNCOST = 50
+
+ENABLE_POOL_HERD = False
+# POOL_HERD (2026-09-21 read of 81 top-ladder replays + our 60 newest games).
+# The market is one pool both farms sell into and the reward is relative, so a
+# product line only pays while the pool has room. In our games WOOL realizes
+# 190-209 (>= BASE 200: the town drains more than both farms shear) and we
+# sell 44 units against the opponent's 104 = -10.3k/game; the top-ladder farm
+# holds 8 COW + 6-7 SHEEP by day 14 in every money band. HERD_14 / HERD_BIG
+# raised the herd unconditionally and lost money when the product landed on a
+# glutted pool. ON, from quadrant 2: the herd is sized from the observed
+# `market.inventory` (which already contains the opponent's sales) --
+#   WOOL inventory <= I0 - MARGIN (price >= base): SHEEP want rises to
+#     SHEEP_WANT[quadrants], sheep are reserved before cows/geese, and with
+#     3+ quadrants the herd cap grows by EXTRA_CAP;
+#   WOOL / MILK inventory >= I0 + GLUT: no further SHEEP / COW is wanted
+#     (animals already placed or in the shed are kept);
+#   else MILK inventory <= I0 - MILK_MARGIN with 3+ quadrants: COW want and the
+#     herd cap grow by EXTRA_CAP (0 disables).
+# MARGIN 10 = WOOL >= ~220: probe seed 424242 (no YARN_STORE) sat at I0 +-6
+# with nobody selling and 4 sheep then floored WOOL to $1 by day 26 -- "at
+# base" is not room, a drained pool is.
+# OFF is behaviour-identical to the incumbent.
+POOL_HERD_MARGIN = 10
+POOL_HERD_MILK_MARGIN = 60
+POOL_HERD_GLUT = 40
+# v87 / v90 (sheep reserved first, SHEEP 4 on 2 quadrants) read -0.1k / -0.7k:
+# the early sheep displaced the day 8-10 cows. Sheep are now ADDED on 3+
+# quadrants, after the cows.
+POOL_HERD_SHEEP_FIRST = False
+POOL_HERD_SHEEP_WANT = {3: 6, 4: 6}
+POOL_HERD_EXTRA_CAP = 3
+
+ENABLE_STR_TRIM = False
+# STR_TRIM (same read). We hold 49 STRAWBERRY tiles from day 14, the top-ladder
+# farm ~31, and 21-25 of our ~55 plants go unwatered on days 16-26 (M16): the
+# last tiles cost labour and $100 seeds the day-6..14 herd needs. ON:
+# `choose_crops`'s value loop stops picking STRAWBERRY at STR_TRIM_TILES
+# planted; the freed slots go to the crop the same loop ranks next. Existing
+# tiles are untouched. OFF is a byte no-op.
+# Unconditional (v88, 60 low-noise pairs): +3.5k / +5.3k vs same-lineage farms
+# that plant 44-58 STRAWBERRY into the same pool, -8.2k vs animal factories
+# that plant none (flat overall) -> the trim only applies while the opponent
+# holds STR_TRIM_OPP_TILES or more STRAWBERRY tiles (0 = unconditional).
+STR_TRIM_TILES = 33
+STR_TRIM_OPP_TILES = 15
+
 ENABLE_HERD_CAP_RESERVE = False
 # HERD-CAP-RESERVE (2026-09-18 read of 56307690+56311727, 75 eps). The
 # animal_targets loop takes max(have, min(want, cap - tot)) species by species,
@@ -987,6 +1075,23 @@ MOVE_THRIFT_V2_FAR_PENALTY = 35
 MOVE_THRIFT_V2_FAR_FREE = 2       # first FAR_FREE steps charged at the base rate
 MOVE_THRIFT_V2_IDLE_SLACK = 2     # idle hand holds position if within this many tiles
 
+ENABLE_TASK_STICKY = False
+# TASK_STICKY (/ladder Phase C, 2026-09-21; family movement-routing, register
+# row M16). assign() re-solves the whole unit x task match every turn, and the
+# only thing holding a walking unit to last turn's target is the +90 soft
+# commitment below -- under four steps of in-zone step_cost, and less than one
+# _followup_bonus. A newly spawned task or a neighbour finishing its op is
+# enough to re-match a unit mid-walk: the steps already taken are thrown away
+# and the abandoned tile waits for a fresh trip (the teardown's excess is more
+# trips, not longer ones; reversal jitter 6x the top-10). ON: while the unit is
+# still en route (travel > 0) to the target it was given last turn, and that
+# tile still has a queued op, the commitment is TASK_STICKY_BONUS instead of
+# +90. Distinct from MOVE_THRIFT_V2: no distance term is reweighted and a unit
+# with no standing route is matched exactly as before. Survival work
+# (priority >= 9000) still outbids the bonus by thousands, so a rescue is
+# never deferred. OFF (default) = exact byte no-op.
+TASK_STICKY_BONUS = 400
+
 ENABLE_SHED_STAGING = True
 # SHED_STAGING (Lever H1, 2026-09-13). Engine-exact replay of board-best
 # 56184777 (23 ladder eps): the end-of-day auto-drop overflowed the 100-item
@@ -1105,6 +1210,48 @@ CROP_FERT_PRIORITY = 2650         # > comfort water 2600, < evening top-off 3000
 CROP_FERT_MARGIN = 1.5            # covered-tick value must beat 1.5x fert price
 CROP_FERT_PICKUP_MAX = 3
 CROP_FERT_TICK_AGES = {"TOMATO": (8, 9, 10, 11), "STRAWBERRY": (10, 12, 14, 16)}
+
+ENABLE_FERT_TICK_FIRST = False
+# FERT_TICK_FIRST (2026-09-20; scratch fertdiag.py on the promoted build vs
+# bot_animalfactory_v2). Hands PICK UP 190-240 fertilizer/game at the shed but
+# execute only 50-70 FERTILIZE: the task sits at 2650, the lowest field tier,
+# while labour is saturated (0% PASS on days 15-28), so the fertilizer rides
+# around all day and is auto-dropped back at night. 70-80% of STRAWBERRY ticks
+# (160-200/game) resolve without the +1 at a STRAWBERRY price of 220-280 --
+# 110-150 forfeited units/game; the top-3 fertilize 135-198x/game for 7.2-7.4
+# strawberries per tile. ON:
+#   (a) FERTILIZE is emitted only on a tick-eve day (the plant's tick resolves
+#       tonight and it is not covered): STRAWBERRY ages 9/13 (fallback 11/15)
+#       cover two ticks per unit, where an early application covers one;
+#   (b) at FERT_TICK_FIRST_PRIORITY, above the survival water: only a unit
+#       carrying fertilizer can take it and there are 12-25 a day, so it costs
+#       a few hand-turns and is done first thing; at 4700 it still lost to the
+#       10000-tier survival waters all day (53 FERTILIZE of 152 picked up).
+#       The fertilized tick-night WATER that follows on the same tile rides at
+#       FERT_TICK_FIRST_WATER_PRIORITY, because a +1 STRAWBERRY needs both;
+#   (c) the hour 0-1 shed pickup takes the zone's whole tick-eve demand
+#       (FERT_TICK_FIRST_PICKUP_MAX instead of CROP_FERT_PICKUP_MAX);
+#   (d) day 28 applications are allowed (their tick is harvested on day 29);
+#   (f) assign keeps one FERTILIZE task per fertilizer unit a field hand holds
+#       (own zone first): a FERTILIZE nobody can execute would otherwise hide
+#       the tile's survival WATER from _unique_tasks and kill the plant;
+#   (g) at hour 0 the shed is topped up from the market to today's tick-eve
+#       demand (<= FERT_TICK_FIRST_BUY_MAX; fertilizer 20-70 buys +2 units of a
+#       220-280 crop);
+#   (e) a HARVEST on a plant whose fertilized tick tonight would overflow the
+#       4-unit held cap rides at FERT_TICK_FIRST_HARVEST_PRIORITY (the +2 is
+#       otherwise truncated: 22 of 295 units in the probe game).
+# OFF is behaviour-identical to the incumbent.
+FERT_TICK_FIRST_PRIORITY = 10500
+FERT_TICK_FIRST_WATER_PRIORITY = 10300
+FERT_TICK_FIRST_HARVEST_PRIORITY = 10200
+FERT_TICK_FIRST_BUY_MAX = 12
+FERT_TICK_FIRST_PICKUP_MAX = 10
+
+
+def _fert_last_day():
+    """First day on which no FERTILIZE is issued."""
+    return 29 if ENABLE_FERT_TICK_FIRST else 28
 
 ENABLE_FERT_WATER_PRIORITY = False
 # FERT_WATER_PRIORITY (2026-09-18; 29-ep read of the promoted CROP-FERTILIZE
@@ -1301,7 +1448,11 @@ def _fert_wanted(t, day, prices, mkt_inv):
     crop = t.get("crop")
     if crop not in CROP_FERT_TICK_AGES or t.get("fertilized_until_day", -1) >= day:
         return False
-    n = _fert_ticks_covered(crop, day - int(t.get("planted_day", day)))
+    age = day - int(t.get("planted_day", day))
+    if ENABLE_FERT_TICK_FIRST and (day >= _fert_last_day()
+                                   or not _fert_tick_tonight(crop, age)):
+        return False            # (a): tick-eve applications only
+    n = _fert_ticks_covered(crop, age)
     if n <= 0:
         return False
     gain = n * price_at(crop, mkt_inv.get(crop, 10000))
@@ -1699,6 +1850,8 @@ def animal_targets(obs, me, intent=None):
     one_quad_cap = BUY_COUNT_REALIZED_ONE_QUAD_CAP if ENABLE_BUY_COUNT_REALIZED else 3
     if _herd_before_land_active(day):
         one_quad_cap = max(one_quad_cap, HERD_BEFORE_LAND_ONE_QUAD_CAP)
+    if ENABLE_SHEEP_OPENING:
+        one_quad_cap = max(one_quad_cap, SHEEP_OPENING_ONE_QUAD_CAP)
     cap = {1: one_quad_cap, 2: 8}.get(nq, HERD_14_CAP if ENABLE_HERD_14 else 13)
     if intent["mode"] == "ANTI_META" and day >= int(intent["config"]["FINGERPRINT_DAY"]):
         caps = intent["config"]["HERD_CAP_BY_QUADRANTS"]
@@ -1722,6 +1875,8 @@ def animal_targets(obs, me, intent=None):
                 want = dict(SHEEP_ON_YARN_MATCH_WANT)
             else:
                 want = dict(HERD_14_MATCH_WANT) if ENABLE_HERD_14                     else {"COW": 5, "GOOSE": 5, "SHEEP": 1}
+                if ENABLE_GOOSE_ON_NO_MILK and dem["MILK"] >= 1:
+                    want = {"COW": 9, "GOOSE": 2, "SHEEP": 2 if dem["WOOL"] else 1}
         else:
             want = dict(F1_OFF_WANT)
             cap = min(cap, F1_OFF_CAP)
@@ -1746,6 +1901,27 @@ def animal_targets(obs, me, intent=None):
             want = bumped
     out, tot = {}, 0
     order = ("COW", "SHEEP", "GOOSE") if yarn else ("COW", "GOOSE", "SHEEP")
+    if ENABLE_POOL_HERD and nq >= 2:
+        pool = (obs.get("market") or {}).get("inventory") or {}
+        wool_over = int(pool.get("WOOL", 10000)) - 10000
+        milk_over = int(pool.get("MILK", 10000)) - 10000
+        if wool_over <= -POOL_HERD_MARGIN:
+            want["SHEEP"] = max(int(want.get("SHEEP", 0)),
+                                int(POOL_HERD_SHEEP_WANT.get(nq, 0)))
+            order = ("SHEEP", "COW", "GOOSE") if POOL_HERD_SHEEP_FIRST else ("COW", "SHEEP", "GOOSE")
+            if nq >= 3:
+                cap += POOL_HERD_EXTRA_CAP
+        elif wool_over >= POOL_HERD_GLUT:
+            want["SHEEP"] = min(int(want.get("SHEEP", 0)), int(have["SHEEP"]))
+        if milk_over >= POOL_HERD_GLUT:
+            want["COW"] = min(int(want.get("COW", 0)), int(have["COW"]))
+        elif (POOL_HERD_MILK_MARGIN and nq >= 3 and milk_over <= -POOL_HERD_MILK_MARGIN
+              and wool_over > -POOL_HERD_MARGIN):
+            want["COW"] = int(want.get("COW", 0)) + POOL_HERD_EXTRA_CAP
+            cap += POOL_HERD_EXTRA_CAP
+    if ENABLE_SHEEP_OPENING and nq == 1:
+        want = dict(SHEEP_OPENING_WANT)
+        order = ("SHEEP", "COW", "GOOSE")
     for i, a in enumerate(order):
         room = cap - tot
         if ENABLE_HERD_CAP_RESERVE:
@@ -2087,6 +2263,8 @@ def choose_crops(obs, me, private, counts, plant_slots, intent=None):
         str_price = price_at("STRAWBERRY", mkt_inv.get("STRAWBERRY", 10000))
         if demand_counts(obs).get("STRAWBERRY", 0) == 0 and str_price < BASE["STRAWBERRY"]:
             caps["STRAWBERRY"] = counts.get("STRAWBERRY", 0)
+    if ENABLE_STR_TRIM and opp["STRAWBERRY"] >= STR_TRIM_OPP_TILES:
+        caps["STRAWBERRY"] = min(caps.get("STRAWBERRY", 10**9), STR_TRIM_TILES)
     cur = Counter(counts)
     proj_inv = {c: mkt_inv.get(c, 0)
                 + (0 if ENABLE_CROP_CROWD_OWN_ONLY else opp[c] * _PICK_DECAY[c])
@@ -2206,6 +2384,11 @@ def build_tasks(obs, me, private):
                         tasks.append((10000 + 5 * hour, pos, ["WATER"]))
                     elif not ongoing and (my + 1) // 2 <= age <= my:
                         tasks.append((6200 + age, pos, ["WATER"]))   # yield-window growth
+                    elif (ENABLE_FERT_TICK_FIRST and ongoing
+                          and t.get("fertilized_until_day", -1) >= day
+                          and _fert_tick_tonight(crop, age)):
+                        # FERT_TICK_FIRST (b): tonight's +1 needs this water.
+                        tasks.append((FERT_TICK_FIRST_WATER_PRIORITY, pos, ["WATER"]))
                     elif (ENABLE_FERT_WATER_PRIORITY and ongoing
                           and t.get("fertilized_until_day", -1) >= day
                           and _fert_tick_tonight(crop, age)):
@@ -2235,11 +2418,17 @@ def build_tasks(obs, me, private):
                         mls = t.get("max_lifespan_step", -1)
                         decaying = mls >= 0 and (day + 1) * 24 >= mls
                         near_cap = yu >= (3 if ENABLE_CROP_FERTILIZE else 4)
-                        tasks.append((5000 if (decaying or near_cap) else 3200, pos, ["HARVEST"]))
+                        if (ENABLE_FERT_TICK_FIRST and yu >= 3 and _fert_tick_tonight(crop, age)
+                                and t.get("max_lifespan_step", -1) < 0):
+                            # FERT_TICK_FIRST (e): tonight's +2 would overflow.
+                            tasks.append((FERT_TICK_FIRST_HARVEST_PRIORITY, pos, ["HARVEST"]))
+                        else:
+                            tasks.append((5000 if (decaying or near_cap) else 3200, pos, ["HARVEST"]))
                 # ---- fertilizing (CROP_FERTILIZE) ----
-                if ENABLE_CROP_FERTILIZE and ongoing and day < 28 and _fert_wanted(
+                if ENABLE_CROP_FERTILIZE and ongoing and day < _fert_last_day() and _fert_wanted(
                         t, day, None, (obs.get("market") or {}).get("inventory", {}) or {}):
-                    tasks.append((CROP_FERT_PRIORITY, pos, ["FERTILIZE"]))
+                    tasks.append((FERT_TICK_FIRST_PRIORITY if ENABLE_FERT_TICK_FIRST
+                                  else CROP_FERT_PRIORITY, pos, ["FERTILIZE"]))
             elif kind in {"COOP", "PASTURE"} and t.get("animal"):
                 # FEED needs wheat in the acting unit's inventory so it stays with
                 # the dedicated crew; HARVEST, COLLECT_FERTILIZER and CARE have no
@@ -2770,7 +2959,7 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
         if (_vis_worth(me) + my_shed_val) - opp_worth >= LEAD_RISK_MARGIN:
             lead_risk = "ahead"
     fert_floor = (_fert_demand(me, day, mkt_inv)
-                  if (ENABLE_CROP_FERTILIZE and day < 28) else 0)
+                  if (ENABLE_CROP_FERTILIZE and day < _fert_last_day()) else 0)
     for item, qty in list(shed.items()):
         qty = int(qty)
         if item == "WHEAT":
@@ -2978,7 +3167,8 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
         placed_total = sum(have.values())
         pending = int(sum(v for k, v in shed.items() if k in ANIMALS))
         carried_an = Counter()
-        if ENABLE_BUY_COUNT_CARRIED or ENABLE_BUY_COUNT_REALIZED:
+        if (ENABLE_BUY_COUNT_CARRIED or ENABLE_BUY_COUNT_REALIZED
+                or (ENABLE_SHEEP_OPENING and len(me.get("unlocked_quadrants", [])) == 1)):
             for inv in (private.get("inventories") or []):
                 for a in ANIMALS:
                     carried_an[a] += int((inv or {}).get(a, 0))
@@ -3037,6 +3227,12 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
                             # HERD_BEFORE_LAND (c)
                             res_term = min(res_term, HERD_BEFORE_LAND_RESERVE_FLOOR)
                             runcost = min(runcost, HERD_BEFORE_LAND_RUNCOST)
+                        if (ENABLE_HERD_STEP_D6
+                                and HERD_STEP_D6_FIRST_DAY <= day <= HERD_STEP_D6_LAST_DAY
+                                and len(me.get("unlocked_quadrants", [])) >= 2
+                                and (placed_total + pending) < HERD_STEP_D6_TARGET):
+                            res_term = min(res_term, HERD_STEP_D6_RESERVE)
+                            runcost = min(runcost, HERD_STEP_D6_RUNCOST)
                         afford = money - res_term >= ANIMALS[a][0] + runcost * placed_total
                     else:
                         afford = money >= ANIMALS[a][0] + E3_OFF_FIXED_MARGIN + 150 * placed_total
@@ -3094,6 +3290,18 @@ def market_orders(obs, me, private, counts, n_units, intent=None):
                 if b > 0:
                     buys_hi.append(["BUY_PRODUCT", "WHEAT", b])
                     money -= b * wp
+
+    # FERT_TICK_FIRST (g): top the shed up to today's tick-eve demand.
+    if ENABLE_FERT_TICK_FIRST and hour == 0 and day < _fert_last_day():
+        gap = sum(1 for row in me["tiles"] for t in row
+                  if isinstance(t, dict) and t.get("kind") == "PLANT"
+                  and _fert_wanted(t, day, None, mkt_inv)) - int(shed.get("FERTILIZER", 0))
+        if gap > 0:
+            fp = max(1, price_at("FERTILIZER", mkt_inv.get("FERTILIZER", 10000)))
+            b = min(gap, FERT_TICK_FIRST_BUY_MAX, int(max(0, money - reserve) // fp))
+            if b > 0:
+                buys_hi.append(["BUY_PRODUCT", "FERTILIZER", b])
+                money -= b * fp
 
     # ---- seeds: keep a small buffer for the crops we mean to plant ----
     if day < 27:
@@ -3430,7 +3638,7 @@ def assign(obs, me, private, tasks, zones, forced=None):
     # CROP_FERTILIZE: every unit spawns at the shed (the farmer at hour 0, the
     # day's hires at hour 1) -- units whose zone has fertilize work stock up
     # before walking out.
-    if ENABLE_CROP_FERTILIZE and day < 28 and hour <= 1:
+    if ENABLE_CROP_FERTILIZE and day < _fert_last_day() and hour <= 1:
         fert_left = int((private.get("shed") or {}).get("FERTILIZER", 0))
         fert_tiles = [target for _, target, action in tasks if action == ["FERTILIZE"]]
         for i in range(n):
@@ -3442,11 +3650,39 @@ def assign(obs, me, private, tasks, zones, forced=None):
                 continue
             zone = zones[i] if i < len(zones) else set()
             want = sum(1 for target in fert_tiles if target in zone)
-            take = min(want, fert_left, CROP_FERT_PICKUP_MAX)
+            take = min(want, fert_left, FERT_TICK_FIRST_PICKUP_MAX
+                       if ENABLE_FERT_TICK_FIRST else CROP_FERT_PICKUP_MAX)
             if take > 0:
                 actions[i] = ["PICKUP", "FERTILIZER", take]
                 busy[i] = True
                 fert_left -= take
+
+    if ENABLE_FERT_TICK_FIRST:
+        # (f): one FERTILIZE task per fertilizer unit held by a field hand.
+        stock = {}
+        for i in range(n):
+            if not (i < len(zones) and zones[i]):
+                continue                        # animal crew: no field zone
+            q = int(invs[i].get("FERTILIZER", 0))
+            if actions[i][:2] == ["PICKUP", "FERTILIZER"]:
+                q += int(actions[i][2])
+            if q > 0:
+                stock[i] = q
+        kept = set()
+        if stock:
+            ftiles = [target for _, target, action in tasks if action == ["FERTILIZE"]]
+            for i in list(stock):
+                mine = sorted((t for t in ftiles if t in zones[i] and t not in kept),
+                              key=lambda t: dist(positions[i], t))[:stock[i]]
+                kept.update(mine)
+                stock[i] -= len(mine)
+            spare = sum(stock.values())
+            if spare > 0:
+                holders = [positions[i] for i, q in stock.items() if q > 0]
+                rest = sorted((t for t in ftiles if t not in kept),
+                              key=lambda t: min(dist(h, t) for h in holders))
+                kept.update(rest[:spare])
+        tasks = [tk for tk in tasks if tk[2] != ["FERTILIZE"] or tk[1] in kept]
 
     available = [i for i in range(n) if not busy[i]]
     candidates = _unique_tasks(tasks)
@@ -3523,7 +3759,8 @@ def assign(obs, me, private, tasks, zones, forced=None):
                 # previously suggested second stop. Both remain easy to override.
                 if remembered:
                     if target == remembered[0]:
-                        value += 90
+                        value += (TASK_STICKY_BONUS
+                                  if ENABLE_TASK_STICKY and travel > 0 else 90)
                     elif target == remembered[1]:
                         value += 55
 
