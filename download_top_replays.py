@@ -148,7 +148,7 @@ def download(kind: str, episode_id: int, output: Path,
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--top", type=int, default=10,
+    parser.add_argument("--top", type=int, default=3,
                         help="number of leaderboard teams (default: 10)")
     parser.add_argument("--episodes-per-team", type=int, default=1,
                         help="newest public episodes per team (default: 1)")
