@@ -1,0 +1,38 @@
+v100 CARE-PARITY family -- fixed before any run (2026-09-22)
+evidence      : Measured leak: 22 fed-not-cared animal-days/game. ENABLE_CARE_PARITY
+                prioritizes CARE ahead of HARVEST/COLLECT_FERTILIZER on a fed, uncared
+                animal unless its yield is near max_held. Expected effect: +3.2k own
+                money/game.
+baseline      : main.py (promoted, currently on live ladder)
+candidate     : agents/main_v100_careparity.py (ENABLE_CARE_PARITY: CARE reordered ahead
+                of HARVEST/COLLECT_FERTILIZER on fed, uncared animals unless yield near max)
+search seed   : 220926, 100 pairs, experiments/league_ownmoney_mix.json
+held-out seed : 922601, 100 pairs, experiments/league_ownmoney_mix.json -- ONE arm
+                (v100), ONE run, chosen before looking
+metric        : paired own final money (mean + CI95)
+
+Command form (primary): python experiments/paired_lownoise.py <out.csv> 100 220926 <workers> \
+  experiments/league_ownmoney_mix.json main.py agents/main_v100_careparity.py
+Report (primary): python experiments/paired_lownoise.py --report <out.csv> main.py
+
+held-out command: python experiments/paired_lownoise.py <out.csv> 100 922601 <workers> \
+  experiments/league_ownmoney_mix.json main.py agents/main_v100_careparity.py
+Report (held-out): python experiments/paired_lownoise.py --report <out.csv> main.py
+
+Safety: python compete.py --games 120 with agents/main_v100_careparity.py, then
+        tools/analyze_runs.py --last 1 --json summary.json --csv games.csv
+
+PASS BAR (all required):
+ (a) primary own money vs main.py >= +1.5k, CI95 excludes 0
+ (b) held-out own money vs main.py > 0 with CI95 lower bound > -0.5k
+ (c) animal_factory subgroup not regress beyond noise
+ (d) 0 agent() errors/tracebacks in safety run; no regression in win-rate vs animal_factory
+
+MECHANISM COUNTERS (report if exposed by runner or quick probe):
+ - CARE action count per game (expected: +X more on v100)
+ - COLLECT_FERTILIZER action count per game
+ - fertilizer units collected per game
+ - fed-uncared animal-days (direct observation of mechanism firing)
+
+Never Read raw replay/log JSON -- use analyze_runs.py / probe_game.py or grep on
+compact CSV/summary output only.
